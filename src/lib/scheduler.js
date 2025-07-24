@@ -3,10 +3,8 @@ import { prisma } from '@/lib/prisma';
 export async function runScheduler() {
   await prisma.schedule.deleteMany();
   await prisma.conflict.deleteMany();
-  try {
-    // Clear existing schedule and conflicts
-    
 
+  try {
     const topics = await prisma.bachelorTopic.findMany({
       include: { supervisor: true, reviewer: true },
     });
@@ -15,6 +13,7 @@ export async function runScheduler() {
     const rooms = await prisma.room.findMany();
 
     const usedByUser = new Map(); // userId -> Set of slot keys
+    const usedRooms = new Map();  // slotKey -> Set of room IDs
 
     for (const topic of topics) {
       let assigned = false;
@@ -24,28 +23,33 @@ export async function runScheduler() {
 
         const sUsed = usedByUser.get(topic.supervisorId) || new Set();
         const rUsed = usedByUser.get(topic.reviewerId) || new Set();
+        const roomUsed = usedRooms.get(slotKey) || new Set();
 
         if (sUsed.has(slotKey) || rUsed.has(slotKey)) {
-          continue; // Conflict
+          continue; // supervisor or reviewer is busy
         }
 
-        // Assign to first room (or you can rotate/select smarter)
-        const room = rooms[0];
-        if (!room) continue;
+        // Find first room that's free at this time
+        const availableRoom = rooms.find(room => !roomUsed.has(room.id));
+        if (!availableRoom) continue;
 
+        // Create the schedule
         await prisma.schedule.create({
           data: {
             topicId: topic.id,
-            roomId: room.id,
+            roomId: availableRoom.id,
             slotId: slot.id,
           },
         });
 
-        // Mark as used
+        // Mark this slot as used by supervisor, reviewer, and room
         sUsed.add(slotKey);
         rUsed.add(slotKey);
+        roomUsed.add(availableRoom.id);
+
         usedByUser.set(topic.supervisorId, sUsed);
         usedByUser.set(topic.reviewerId, rUsed);
+        usedRooms.set(slotKey, roomUsed);
 
         assigned = true;
         break;
@@ -55,7 +59,7 @@ export async function runScheduler() {
         await prisma.conflict.create({
           data: {
             topicId: topic.id,
-            reason: 'No common available slot for supervisor & reviewer',
+            reason: 'No available slot with free room and available supervisor & reviewer',
           },
         });
       }
