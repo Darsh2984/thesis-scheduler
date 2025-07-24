@@ -14,6 +14,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
+        <nav className="bg-gray-100 p-4 flex gap-4">
+        <a href="/schedule" className="text-blue-600">📅 Schedule</a>
+        <a href="/conflicts" className="text-red-600">⚠️ Conflicts</a>
+      </nav>
         <main className="min-h-screen bg-gray-50 text-gray-900">
           {children}
         </main>
