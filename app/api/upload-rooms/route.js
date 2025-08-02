@@ -11,7 +11,6 @@ export async function POST(req) {
 
   try {
 
-    await prisma.timeSlot.deleteMany({});
 
     const buffer = Buffer.from(await file.arrayBuffer());
     const workbook = read(buffer, { type: 'buffer' });

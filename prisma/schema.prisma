@@ -7,21 +7,23 @@ generator client {
   provider = "prisma-client-js"
 }
 
-model User {
-  id        Int      @id @default(autoincrement())
-  name      String
-  email     String  @unique
-  role      Role
-  availability UserAvailability[]
-  topicsAsSupervisor BachelorTopic[] @relation("Supervisor")
-  topicsAsReviewer   BachelorTopic[] @relation("Reviewer")
-}
-
 enum Role {
   FT_SUPERVISOR
   PT_SUPERVISOR
   REVIEWER
   BOTH
+}
+
+model User {
+  id           Int                   @id @default(autoincrement())
+  name         String
+  email        String                @unique
+  role         Role
+
+  topicsAsSupervisor BachelorTopic[] @relation("Supervisor")
+  topicsAsReviewer   BachelorTopic[] @relation("Reviewer")
+  unavailability     UserUnavailability[]
+  preferredDates     PreferredDate[]  // ✅ New backrelation for preferred dates
 }
 
 model BachelorTopic {
@@ -51,15 +53,6 @@ model TimeSlot {
   schedules Schedule[]
 }
 
-model UserAvailability {
-  id          Int      @id @default(autoincrement())
-  userId      Int
-  date        DateTime
-  isAvailable Boolean
-
-  user        User     @relation(fields: [userId], references: [id])
-}
-
 model Schedule {
   id        Int     @id @default(autoincrement())
   topicId   Int
@@ -77,4 +70,18 @@ model Conflict {
   reason    String
 
   topic     BachelorTopic @relation(fields: [topicId], references: [id])
+}
+
+model UserUnavailability {
+  id     Int      @id @default(autoincrement())
+  user   User     @relation(fields: [userId], references: [id])
+  userId Int
+  date   DateTime
+}
+
+model PreferredDate {
+  id     Int      @id @default(autoincrement())
+  user   User     @relation(fields: [userId], references: [id])
+  userId Int
+  date   DateTime
 }

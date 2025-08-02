@@ -1,12 +1,16 @@
-import { NextResponse } from 'next/server';
-import { runScheduler } from '@/lib/scheduler';
+// app/api/run-scheduler/route.ts
+import { runScheduler } from '@/lib/scheduler'; // adjust this if the path is different
 
-export async function GET() {
+export async function POST() {
   try {
-    await runScheduler(); // your logic from lib/scheduler.js
-    return NextResponse.json({ success: true, message: 'Scheduler run complete.' });
-  } catch (error) {
-    console.error('Scheduler Error:', error);
-    return NextResponse.json({ success: false, message: 'Scheduler failed.', error });
+    await runScheduler();
+    return new Response(JSON.stringify({ message: '✅ Scheduler run successfully' }), {
+      status: 200,
+    });
+  } catch (err) {
+    console.error('❌ Scheduler run failed:', err);
+    return new Response(JSON.stringify({ error: 'Failed to run scheduler' }), {
+      status: 500,
+    });
   }
 }

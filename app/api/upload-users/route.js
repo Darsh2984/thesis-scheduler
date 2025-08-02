@@ -15,13 +15,15 @@ export async function POST(req) {
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
     const data = utils.sheet_to_json(sheet);
 
-    await prisma.schedule.deleteMany();
-    await prisma.bachelorTopic.deleteMany();
-    await prisma.conflict.deleteMany();
-    await prisma.userAvailability.deleteMany();
-    await prisma.timeSlot.deleteMany();
-    await prisma.room.deleteMany();
-    await prisma.user.deleteMany();
+    await prisma.schedule.deleteMany();             // references topic, room, slot
+    await prisma.conflict.deleteMany();             // references topic
+    await prisma.bachelorTopic.deleteMany();        // references user (supervisor & reviewer)
+    await prisma.preferredDate.deleteMany();        // references user
+    await prisma.userUnavailability.deleteMany();   // references user
+    await prisma.timeSlot.deleteMany();             // referenced by schedule
+    await prisma.room.deleteMany();                 // referenced by schedule
+    await prisma.user.deleteMany();                 // ✅ safe to delete last
+
 
 
     for (const row of data) {
