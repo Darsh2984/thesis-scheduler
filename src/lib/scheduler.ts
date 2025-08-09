@@ -9,6 +9,30 @@ export async function runScheduler() {
       include: { supervisor: true, reviewer: true },
     });
 
+    const reviewerTopicCounts = new Map<number, number>();
+    const reviewerRequiredDays = new Map<number, number>(); 
+
+    for (const topic of topics) {
+      const count = (reviewerTopicCounts.get(topic.reviewerId) || 0) + 1;
+      reviewerTopicCounts.set(topic.reviewerId, count);
+    }
+
+    for (const [reviewerId, count] of reviewerTopicCounts) {
+      let requiredDays = 1;
+      if (count > 6 && count <= 12) requiredDays = 2;
+      else if (count > 12) requiredDays = 3;
+      reviewerRequiredDays.set(reviewerId, requiredDays);
+    }
+
+    function getDateStr(date: Date): string {
+      return date.toISOString().split('T')[0];
+    }
+
+    function countTopicsPerDay(userId: number, dateStr: string, usedByUser: Map<number, Set<string>>): number {
+      const userSlots = usedByUser.get(userId) || new Set();
+      return Array.from(userSlots).filter(slot => slot.startsWith(dateStr)).length;
+    }
+
     const slots = await prisma.timeSlot.findMany();
     const rooms = await prisma.room.findMany();
     const unavailability = await prisma.userUnavailability.findMany();
@@ -41,7 +65,7 @@ export async function runScheduler() {
       const reviewer = topic.reviewer;
 
       // 1. Filter out slots where supervisor/reviewer is unavailable or already busy
-      const validSlots = slots.filter(slot => {
+        const validSlots = slots.filter(slot => {
         const slotKey = `${slot.date.toISOString()}_${slot.startTime}`;
         const dateStr = slot.date.toISOString().split('T')[0];
 
@@ -56,15 +80,27 @@ export async function runScheduler() {
 
         // Reviewer day count limit
         if (reviewer.role === 'REVIEWER') {
-          let days = reviewerDayCount.get(reviewerId);
-          if (!days) {
-            days = new Set();
-            reviewerDayCount.set(reviewerId, days);
+  const days = reviewerDayCount.get(reviewerId) || new Set();
+  const requiredDays = reviewerRequiredDays.get(reviewerId) || 1;
+  const topicsForReviewer = reviewerTopicCounts.get(reviewerId) || 0;
+  
+  // Calculate target per day (rounded up)
+  const targetPerDay = Math.ceil(topicsForReviewer / requiredDays);
+  
+  // Check if adding to this day would exceed target
+      if (days.has(dateStr)) {
+          const topicsThisDay = Array.from(usedByUser.get(reviewerId) || [])
+            .filter(slot => slot.startsWith(dateStr)).length;
+          
+          if (topicsThisDay >= targetPerDay) {
+            return false; // Already reached target for this day
           }
-          const topicCount = topics.filter(t => t.reviewerId === reviewerId).length;
-          const maxDays = topicCount <= 6 ? 1 : topicCount <= 12 ? 2 : 3;
-          if (!days.has(dateStr) && days.size >= maxDays) return false;
+        } else {
+          if (days.size >= requiredDays) {
+            return false; // Already using all required days
+          }
         }
+      }
 
         return true;
       });
