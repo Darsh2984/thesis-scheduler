@@ -3,10 +3,26 @@
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
+type ScheduleRow = {
+  scheduleId: number;
+  topicTitle: string;
+  role: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  roomName: string;
+};
+
+type User = {
+  id: number;
+  name: string;
+  email: string;
+};
+
 export default function UserSchedulePage() {
   const { id } = useParams();
-  const [schedule, setSchedule] = useState([]);
-  const [user, setUser] = useState(null);
+  const [schedule, setSchedule] = useState<ScheduleRow[]>([]);
+  const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -32,31 +48,52 @@ export default function UserSchedulePage() {
     fetchData();
   }, [id]);
 
-  if (loading) return <p className="p-6">Loading schedule...</p>;
+  if (loading) return <p className="p-6">⏳ Loading schedule...</p>;
 
-  if (!user) return <p className="p-6 text-red-500">User not found.</p>;
+  if (!user) return <p className="p-6 text-red-500">❌ User not found.</p>;
 
   return (
-    <div className="p-6">
-      <h1 className="text-xl font-semibold mb-1">
-        Schedule for <span className="text-blue-600">{user.name}</span>
+    <div className="container">
+      <h1 className="pageTitle">
+        Schedule for <span style={{ color: '#2563eb' }}>{user.name}</span>
       </h1>
-      <p className="text-gray-600 mb-4">{user.email}</p>
+      <p className="text-gray-600 mb-6">{user.email}</p>
 
       {schedule.length === 0 ? (
-        <p>No schedule found for this user.</p>
+        <div className="card p-6 text-gray-600">
+          No schedule found for this user.
+        </div>
       ) : (
-        <ul className="space-y-4">
-          {schedule.map(s => (
-            <li key={s.scheduleId} className="border p-4 rounded shadow">
-              <p><strong>Topic:</strong> {s.topicTitle}</p>
-              <p><strong>Role:</strong> {s.role}</p>
-              <p><strong>Date:</strong> {s.date}</p>
-              <p><strong>Time:</strong> {s.startTime} – {s.endTime}</p>
-              <p><strong>Room:</strong> {s.roomName}</p>
-            </li>
-          ))}
-        </ul>
+        <div className="card" style={{ overflow: 'auto', maxHeight: '70vh' }}>
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Topic</th>
+                <th>Role</th>
+                <th>Date</th>
+                <th>Time</th>
+                <th>Room</th>
+              </tr>
+            </thead>
+            <tbody>
+              {schedule.map((s) => (
+                <tr key={s.scheduleId}>
+                  <td>{s.topicTitle}</td>
+                  <td>
+                    <span className="badge">{s.role}</span>
+                  </td>
+                  <td>{s.date}</td>
+                  <td>
+                    {s.startTime} – {s.endTime}
+                  </td>
+                  <td>
+                    <span className="badge">{s.roomName}</span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );

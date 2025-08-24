@@ -1,20 +1,48 @@
 'use client';
+import { useState, useEffect, ChangeEvent } from 'react';
 
-import { useState } from 'react';
+type PreferredRow = { id: number; user: string; date: string };
 
-export default function UploadPreferredDates() {
-  const [message, setMessage] = useState('');
-  const [uploading, setUploading] = useState(false);
+export default function UploadPreferredDatesPage() {
+  const [file, setFile] = useState<File | null>(null);
+  const [status, setStatus] = useState('');
+  const [error, setError] = useState('');
+  const [rows, setRows] = useState<PreferredRow[]>([]);
 
-  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  // Load preferred dates already in DB
+  const load = async () => {
+    try {
+      const res = await fetch('/api/upload-preferred-dates/list');
+      if (!res.ok) return;
+      const data = await res.json();
+      setRows(data.rows || []);
+    } catch {
+      setRows([]);
+    }
+  };
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      setFile(e.target.files[0]);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!file) {
+      setError('❌ No file selected');
+      return;
+    }
 
     const formData = new FormData();
     formData.append('file', file);
 
-    setUploading(true);
-    setMessage('');
+    setStatus('⏳ Uploading...');
+    setError('');
 
     try {
       const res = await fetch('/api/upload-preferred-dates', {
@@ -22,30 +50,59 @@ export default function UploadPreferredDates() {
         body: formData,
       });
 
-      const data = await res.json();
-      setMessage(data.message || data.error || 'Unknown response.');
-    } catch (error) {
-      console.error('Upload error:', error);
-      setMessage('Upload failed.');
-    } finally {
-      setUploading(false);
+      const text = await res.text();
+      if (!res.ok) {
+        setError(`Upload failed (${res.status}). ${text}`);
+        setStatus('');
+        return;
+      }
+
+      setStatus('✅ Preferred dates uploaded successfully');
+      await load();
+    } catch (err: any) {
+      setError(err?.message || String(err));
+      setStatus('');
     }
   };
 
   return (
-    <div className="p-4 border rounded shadow max-w-md mx-auto mt-6 bg-white">
-      <h2 className="text-lg font-semibold mb-2">Upload Preferred Dates</h2>
-      <input
-        type="file"
-        accept=".xlsx,.xls"
-        onChange={handleUpload}
-        className="block w-full mb-3"
-      />
-      {uploading ? (
-        <p className="text-blue-500">Uploading...</p>
-      ) : (
-        message && <p className={`text-sm ${message.includes('error') ? 'text-red-500' : 'text-green-600'}`}>{message}</p>
+    <div className="container">
+      <h1 className="pageTitle">Upload Preferred Dates</h1>
+
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <input type="file" accept=".xlsx,.xls" onChange={handleFileChange} />
+        <button type="submit" className="btn">Upload</button>
+      </form>
+
+      {status && (
+        <pre className="mt-4 bg-gray-50 border p-3 rounded">{status}</pre>
       )}
+
+      {error && (
+        <pre className="mt-4 bg-red-50 border border-red-200 p-3 rounded text-red-600">{error}</pre>
+      )}
+
+      <h3 style={{ marginTop: 20 }}>In database ({rows.length})</h3>
+      <div className="card" style={{ overflow: 'auto', maxHeight: '50vh' }}>
+        <table className="table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>User</th>
+              <th>Date</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.id}>
+                <td>{r.id}</td>
+                <td>{r.user}</td>
+                <td>{r.date}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

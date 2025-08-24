@@ -1,16 +1,41 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, ChangeEvent, FormEvent } from 'react';
+
+type UserRow = { id: number; name: string; email: string; role: string };
 
 export default function UploadUsersPage() {
   const [file, setFile] = useState<File | null>(null);
   const [status, setStatus] = useState('');
+  const [error, setError] = useState('');
+  const [rows, setRows] = useState<UserRow[]>([]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  // Load users already in DB
+  const load = async () => {
+    try {
+      const res = await fetch('/api/users/list');
+      if (!res.ok) return;
+      const data = await res.json();
+      setRows(data.rows || []);
+    } catch {
+      setRows([]);
+    }
+  };
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      setFile(e.target.files[0]);
+    }
+  };
+
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-
     if (!file) {
-      setStatus('❌ No file selected');
+      setError('❌ No file selected');
       return;
     }
 
@@ -18,46 +43,90 @@ export default function UploadUsersPage() {
     formData.append('file', file);
 
     setStatus('⏳ Uploading...');
+    setError('');
 
     try {
-    const res = await fetch('/api/upload-users', {
+      const res = await fetch('/api/upload-users', {
         method: 'POST',
         body: formData,
       });
 
-      const result = await res.json();
-
+      const text = await res.text();
       if (!res.ok) {
-        setStatus(`❌ Upload failed: ${result.message}`);
-      } else {
-        setStatus(`✅ ${result.message}`);
+        setError(`Upload failed (${res.status}). ${text}`);
+        setStatus('');
+        return;
       }
-    } catch (error: any) {
-      console.error('Upload error:', error);
-      setStatus(`❌ Error: ${error.message}`);
+
+      setStatus('✅ Users uploaded successfully');
+      await load();
+    } catch (err: any) {
+      setError(err?.message || String(err));
+      setStatus('');
     }
   };
 
   return (
-    <div className="p-8 max-w-md mx-auto">
-      <h1 className="text-xl font-semibold mb-4">Upload Users Excel</h1>
+    <div className="container">
+      <h1 className="pageTitle">Upload Users</h1>
 
       <form onSubmit={handleSubmit} className="space-y-4">
-        <input
-          type="file"
-          accept=".xlsx, .xls"
-          onChange={(e) => setFile(e.target.files?.[0] || null)}
-        />
-
-        <button
-          type="submit"
-          className="bg-blue-600 text-white px-4 py-2 rounded"
-        >
-          Upload
-        </button>
+        <input type="file" accept=".xlsx,.xls" onChange={handleFileChange} />
+        <button type="submit" className="btn">Upload</button>
       </form>
 
-      {status && <p className="mt-4 text-sm">{status}</p>}
+      {status && (
+        <pre
+          style={{
+            background: '#f9fafb',
+            border: '1px solid #eee',
+            padding: 12,
+            borderRadius: 8,
+            marginTop: 12,
+          }}
+        >
+          {status}
+        </pre>
+      )}
+
+      {error && (
+        <pre
+          style={{
+            color: '#b91c1c',
+            background: '#fef2f2',
+            border: '1px solid #fee2e2',
+            padding: 12,
+            borderRadius: 8,
+            marginTop: 12,
+          }}
+        >
+          {error}
+        </pre>
+      )}
+
+      <h3 style={{ marginTop: 20 }}>In database ({rows.length})</h3>
+      <div className="card" style={{ overflow: 'auto', maxHeight: '50vh' }}>
+        <table className="table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Name</th>
+              <th>Email</th>
+              <th>Role</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.id}>
+                <td>{r.id}</td>
+                <td>{r.name}</td>
+                <td>{r.email}</td>
+                <td>{r.role}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

@@ -1,4 +1,3 @@
-// app/schedule/page.tsx
 import { prisma } from '@/lib/prisma';
 
 export default async function SchedulePage() {
@@ -7,48 +6,78 @@ export default async function SchedulePage() {
       topic: {
         include: {
           supervisor: true,
-          reviewer: true
-        }
+          reviewer: true,
+        },
       },
       room: true,
-      slot: true
+      slot: true,
     },
     orderBy: {
-      slot: {
-        date: 'asc'
-      }
-    }
+      slot: { date: 'asc' },
+    },
+  });
+
+  const conflicts = await prisma.conflict.findMany({
+    include: {
+      topic: true,
+    },
   });
 
   return (
-    <div className="p-6">
-      <h1 className="text-xl font-bold mb-4">Scheduled Presentations</h1>
-      <table className="w-full border">
-        <thead>
-          <tr className="bg-gray-100">
-            <th className="p-2 border">Topic</th>
-            <th className="p-2 border">Supervisor</th>
-            <th className="p-2 border">Reviewer</th>
-            <th className="p-2 border">Room</th>
-            <th className="p-2 border">Date</th>
-            <th className="p-2 border">Time</th>
-          </tr>
-        </thead>
-        <tbody>
-          {schedules.map(s => (
-            <tr key={s.id}>
-              <td className="p-2 border">{s.topic.title}</td>
-              <td className="p-2 border">{s.topic.supervisor.name}</td>
-              <td className="p-2 border">{s.topic.reviewer.name}</td>
-              <td className="p-2 border">{s.room.name}</td>
-              <td className="p-2 border">{s.slot.date.toISOString().split('T')[0]}</td>
-              <td className="p-2 border">
-                {s.slot.startTime.slice(0, 5)} - {s.slot.endTime.slice(0, 5)}
-              </td>
+    <div className="container">
+      <h1 className="pageTitle">Scheduled Presentations</h1>
+
+      {/* Schedule Table */}
+      <div className="card" style={{ overflow: 'auto', maxHeight: '70vh' }}>
+        <table className="table">
+          <thead>
+            <tr>
+              <th>Topic</th>
+              <th>Supervisor</th>
+              <th>Reviewer</th>
+              <th>Room</th>
+              <th>Date</th>
+              <th>Time</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {schedules.map((s) => (
+              <tr key={s.id}>
+                <td>{s.topic.title}</td>
+                <td>{s.topic.supervisor?.name || '—'}</td>
+                <td>{s.topic.reviewer?.name || '—'}</td>
+                <td>{s.room.name}</td>
+                <td>{s.slot.date.toISOString().split('T')[0]}</td>
+                <td>
+                  {s.slot.startTime.slice(0, 5)} – {s.slot.endTime.slice(0, 5)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {schedules.length === 0 && (
+        <p style={{ marginTop: 16, color: '#6b7280' }}>
+          No schedules generated yet. Click <strong>Generate Schedule</strong> in the menu to create one.
+        </p>
+      )}
+
+      {/* Conflicts Section */}
+      <div style={{ marginTop: 40 }}>
+        <h2 className="pageTitle">Unscheduled Topics & Conflicts</h2>
+        {conflicts.length === 0 ? (
+          <p className="text-green-600">🎉 No conflicts found!</p>
+        ) : (
+          <ul className="list-disc ml-5 space-y-2">
+            {conflicts.map((c) => (
+              <li key={c.id}>
+                <strong>{c.topic.title}</strong> – {c.reason}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </div>
   );
 }

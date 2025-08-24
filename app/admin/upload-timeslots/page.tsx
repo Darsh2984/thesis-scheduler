@@ -1,33 +1,131 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect, ChangeEvent, FormEvent } from 'react';
+
+type SlotRow = { id: number; date: string; start: string; end: string };
 
 export default function UploadTimeSlotsPage() {
+  const [file, setFile] = useState<File | null>(null);
   const [status, setStatus] = useState('');
+  const [error, setError] = useState('');
+  const [rows, setRows] = useState<SlotRow[]>([]);
 
-  const handleUpload = async (e: React.FormEvent<HTMLFormElement>) => {
+  // Load slots already in DB
+  const load = async () => {
+    try {
+      const res = await fetch('/api/upload-timeslots/list');
+      if (!res.ok) return;
+      const data = await res.json();
+      setRows(data.rows || []);
+    } catch {
+      setRows([]);
+    }
+  };
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      setFile(e.target.files[0]);
+    }
+  };
+
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setStatus('Uploading...');
+    if (!file) {
+      setError('❌ No file selected');
+      return;
+    }
 
-    const form = e.currentTarget;
-    const formData = new FormData(form);
+    const formData = new FormData();
+    formData.append('file', file);
 
-    const res = await fetch('/api/upload-time-slots', {
-      method: 'POST',
-      body: formData,
-    });
+    setStatus('⏳ Uploading...');
+    setError('');
 
-    const result = await res.json();
-    setStatus(result.message || result.error || 'Unknown response');
+    try {
+      const res = await fetch('/api/upload-timeslots', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const text = await res.text();
+      if (!res.ok) {
+        setError(`Upload failed (${res.status}). ${text}`);
+        setStatus('');
+        return;
+      }
+
+      setStatus('✅ Time slots uploaded successfully');
+      await load();
+    } catch (err: any) {
+      setError(err?.message || String(err));
+      setStatus('');
+    }
   };
 
   return (
-    <div className="p-6 max-w-md mx-auto">
-      <h1 className="text-2xl font-bold mb-4">Upload Time Slots</h1>
-      <form onSubmit={handleUpload}>
-        <input type="file" name="file" accept=".xlsx, .xls" required className="mb-4" />
-        <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded">Upload</button>
+    <div className="container">
+      <h1 className="pageTitle">Upload Time Slots</h1>
+
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <input type="file" accept=".xlsx,.xls" onChange={handleFileChange} />
+        <button type="submit" className="btn">Upload</button>
       </form>
-      {status && <p className="mt-4">{status}</p>}
+
+      {status && (
+        <pre
+          style={{
+            background: '#f9fafb',
+            border: '1px solid #eee',
+            padding: 12,
+            borderRadius: 8,
+            marginTop: 12,
+          }}
+        >
+          {status}
+        </pre>
+      )}
+
+      {error && (
+        <pre
+          style={{
+            color: '#b91c1c',
+            background: '#fef2f2',
+            border: '1px solid #fee2e2',
+            padding: 12,
+            borderRadius: 8,
+            marginTop: 12,
+          }}
+        >
+          {error}
+        </pre>
+      )}
+
+      <h3 style={{ marginTop: 20 }}>In database ({rows.length})</h3>
+      <div className="card" style={{ overflow: 'auto', maxHeight: '50vh' }}>
+        <table className="table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Date</th>
+              <th>Start</th>
+              <th>End</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.id}>
+                <td>{r.id}</td>
+                <td>{r.date}</td>
+                <td>{r.start}</td>
+                <td>{r.end}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

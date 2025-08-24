@@ -12,20 +12,40 @@ export async function POST(req) {
   try {
     const buffer = Buffer.from(await file.arrayBuffer());
     const workbook = read(buffer, { type: 'buffer' });
-
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
     const data = utils.sheet_to_json(sheet);
 
-    console.log('🔑 Columns in sheet:', Object.keys(data[0]));
+    if (!data.length) {
+      return new Response(JSON.stringify({ error: 'No rows found in Excel file' }), { status: 400 });
+    }
 
+    // ✅ Enforce exact column names
+    const REQUIRED_COLS = [
+      'Title',
+      'Supervisor Name',
+      'Supervisor Email',
+      'Reviewer Name',
+      'Reviewer Email',
+    ];
+    const cols = Object.keys(data[0]);
+    for (const col of REQUIRED_COLS) {
+      if (!cols.includes(col)) {
+        return new Response(
+          JSON.stringify({ error: `Missing required column: ${col}` }),
+          { status: 400 }
+        );
+      }
+    }
+
+    // Clear old data
     await prisma.schedule.deleteMany();
     await prisma.bachelorTopic.deleteMany();
 
     for (const row of data) {
-      console.log('📄 Row:', row);
-
       const title = row['Title'];
+      const supName = row['Supervisor Name'];
       const supEmail = row['Supervisor Email'];
+      const revName = row['Reviewer Name'];
       const revEmail = row['Reviewer Email'];
 
       if (!title || !supEmail || !revEmail) {
@@ -37,7 +57,7 @@ export async function POST(req) {
         where: { email: supEmail },
         update: {},
         create: {
-          name: row['Supervisor Name'] || supEmail.split('@')[0],
+          name: supName || supEmail.split('@')[0],
           email: supEmail,
           role: 'FT_SUPERVISOR',
         },
@@ -47,16 +67,11 @@ export async function POST(req) {
         where: { email: revEmail },
         update: {},
         create: {
-          name: row['Reviewer Name'] || revEmail.split('@')[0],
+          name: revName || revEmail.split('@')[0],
           email: revEmail,
           role: 'REVIEWER',
         },
       });
-
-      if (!supervisor || !reviewer) {
-        console.warn(`❌ Skipping topic: ${title} — Supervisor or Reviewer not created.`);
-        continue;
-      }
 
       await prisma.bachelorTopic.create({
         data: {
