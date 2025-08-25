@@ -48,12 +48,8 @@ export default function HomePage() {
               <p className="text-sm text-gray-600">Define date and time ranges</p>
             </li>
             <li>
-              <Link href="/admin/upload-unavailability" className="btn btnDark">Upload Unavailability</Link>  
-              <p className="text-sm text-gray-600">Mark blocked dates for users</p>
-            </li>
-            <li>
-              <Link href="/admin/upload-preferredDates" className="btn btnDark">Upload Preferred Dates</Link>  
-              <p className="text-sm text-gray-600">Mark preferred dates for users</p>
+              <Link href="/admin/user-dates" className="btn btnDark">Upload Unavailability</Link>  
+              <p className="text-sm text-gray-600">Add User Constraints</p>
             </li>
             <li>
               <Link href="/schedule" className="btn btnDark">Generate Schedule</Link>  
