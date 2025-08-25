@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 type SlotRow = { id: number; date: string; start: string; end: string };
 
@@ -10,6 +10,22 @@ export default function UploadTimeSlotsPage() {
   const [newExclude, setNewExclude] = useState('');
   const [status, setStatus] = useState('');
   const [rows, setRows] = useState<SlotRow[]>([]);
+
+  // ✅ Always load existing timeslots from DB
+  const load = async () => {
+    try {
+      const res = await fetch('/api/upload-timeslots/list');
+      if (!res.ok) return;
+      const data = await res.json();
+      setRows(data.rows || []);
+    } catch {
+      setRows([]);
+    }
+  };
+
+  useEffect(() => {
+    load();
+  }, []);
 
   const addExcludedDate = () => {
     if (newExclude && !excludedDates.includes(newExclude)) {
@@ -38,13 +54,16 @@ export default function UploadTimeSlotsPage() {
 
     const data = await res.json();
     setStatus(data.message || data.error);
-    setRows(data.rows || []);
+
+    // ✅ Refresh table after generating
+    await load();
   };
 
   return (
     <div className="container">
       <h1 className="pageTitle">Generate Time Slots</h1>
 
+      {/* Generate form */}
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* From Date */}
         <div>
@@ -114,34 +133,30 @@ export default function UploadTimeSlotsPage() {
       {/* Status */}
       {status && <p className="mt-4 text-sm">{status}</p>}
 
-      {/* Table of generated slots */}
-      {rows.length > 0 && (
-        <>
-          <h3 style={{ marginTop: 20 }}>Generated Time Slots ({rows.length})</h3>
-          <div className="card" style={{ overflow: 'auto', maxHeight: '50vh' }}>
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Date</th>
-                  <th>Start</th>
-                  <th>End</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map(r => (
-                  <tr key={r.id}>
-                    <td>{r.id}</td>
-                    <td>{r.date}</td>
-                    <td>{r.start}</td>
-                    <td>{r.end}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </>
-      )}
+      {/* Always show table from DB */}
+      <h3 style={{ marginTop: 20 }}>In database ({rows.length})</h3>
+      <div className="card" style={{ overflow: 'auto', maxHeight: '50vh' }}>
+        <table className="table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Date</th>
+              <th>Start</th>
+              <th>End</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(r => (
+              <tr key={r.id}>
+                <td>{r.id}</td>
+                <td>{r.date}</td>
+                <td>{r.start}</td>
+                <td>{r.end}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
