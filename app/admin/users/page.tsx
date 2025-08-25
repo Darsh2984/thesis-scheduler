@@ -16,7 +16,11 @@ export default function UsersPage() {
   useEffect(() => {
     fetch('/api/users')
       .then((res) => res.json())
-      .then((data) => setUsers(data));
+      .then((data) => {
+        // ✅ sort by ID ascending before setting state
+        const sorted = [...data].sort((a, b) => a.id - b.id);
+        setUsers(sorted);
+      });
   }, []);
 
   const handleDownloadPDF = async (userId: number) => {

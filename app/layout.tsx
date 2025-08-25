@@ -24,8 +24,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <Link href="/admin/upload-topics">Upload Topics</Link>
               <Link href="/admin/upload-rooms">Upload Rooms</Link>
               <Link href="/admin/upload-timeslots">Upload Timeslots</Link>
-              <Link href="/admin/upload-unavailability">Upload Unavailability</Link>
-              <Link href="/admin/upload-preferred-dates">Upload Preferred Dates</Link>
+              <Link href="/admin/user-dates">Constraints</Link>              
               <Link href="/admin/users">All Users</Link>
               <GenerateScheduleButton />
             </nav>
