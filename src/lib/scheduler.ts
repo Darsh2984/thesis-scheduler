@@ -9,37 +9,6 @@ export async function runScheduler() {
       include: { supervisor: true, reviewer: true },
     });
 
-    // Count how many topics each reviewer has
-    const reviewerTopicCounts = new Map<number, number>();
-    const reviewerRequiredDays = new Map<number, number>();
-
-    for (const topic of topics) {
-      const r = topic.reviewer;
-      if (!r) continue;
-      const count = (reviewerTopicCounts.get(r.id) || 0) + 1;
-      reviewerTopicCounts.set(r.id, count);
-    }
-
-    for (const [reviewerId, count] of reviewerTopicCounts) {
-      const reviewer = topics.find(t => t.reviewerId === reviewerId)?.reviewer;
-      if (!reviewer) continue;
-
-      if (reviewer.role === 'FT_SUPERVISOR') {
-        reviewerRequiredDays.set(reviewerId, 0);
-        continue;
-      }
-
-      let requiredDays = 1;
-      if (count > 8 && count <= 15) requiredDays = 2;
-      else if (count > 15) requiredDays = 3;
-
-      if (reviewer.role === 'BOTH') {
-        requiredDays = Math.min(requiredDays, 2);
-      }
-
-      reviewerRequiredDays.set(reviewerId, requiredDays);
-    }
-
     const slots = await prisma.timeSlot.findMany({ orderBy: { date: 'asc' } });
     const rooms = await prisma.room.findMany();
     const unavailability = await prisma.userUnavailability.findMany();
@@ -61,10 +30,10 @@ export async function runScheduler() {
     }
 
     // Usage tracking
-    const usedByUser = new Map<number, Set<string>>();
-    const usedRooms = new Map<string, Set<number>>();
-    const reviewerRoomLock = new Map<number, number>();
-    const reviewerDayCount = new Map<number, Set<string>>();
+    const usedByUser = new Map<number, Set<string>>(); // slotKey per user
+    const usedRooms = new Map<string, Set<number>>();  // room ids per slotKey
+    const reviewerRoomLock = new Map<number, number>(); // lock reviewer to a room
+    const reviewerDayAssignments = new Map<number, Map<string, number>>(); // reviewerId -> date -> count
 
     // === LOOP over topics ===
     for (const topic of topics) {
@@ -103,7 +72,7 @@ export async function runScheduler() {
       // ============ SLOT SELECTION ============
       let assigned = false;
 
-      // --- Phase 1: Try to respect preferences and reviewer load balancing ---
+      // Preferred slots first
       const validSlots = slots.filter(slot => {
         const slotKey = `${slot.date.toISOString()}_${slot.startTime}`;
         const dateStr = slot.date.toISOString().split('T')[0];
@@ -116,6 +85,14 @@ export async function runScheduler() {
         if (supervisorUnavailable || reviewerUnavailable || supervisorUsed || reviewerUsed) {
           return false;
         }
+
+        // 🚨 enforce 8 topics per reviewer per day
+        const reviewerAssignments = reviewerDayAssignments.get(reviewerId) || new Map();
+        const assignedCount = reviewerAssignments.get(dateStr) || 0;
+        if (assignedCount >= 8) {
+          return false; // reviewer full on this date
+        }
+
         return true;
       });
 
@@ -165,26 +142,33 @@ export async function runScheduler() {
         usedRooms.set(slotKey, roomUsed);
         reviewerRoomLock.set(reviewerId, availableRoom.id);
 
-        let days = reviewerDayCount.get(reviewerId);
-        if (!days) {
-          days = new Set();
-          reviewerDayCount.set(reviewerId, days);
+        let reviewerAssignments = reviewerDayAssignments.get(reviewerId);
+        if (!reviewerAssignments) {
+          reviewerAssignments = new Map();
+          reviewerDayAssignments.set(reviewerId, reviewerAssignments);
         }
-        days.add(slotDateStr);
+        reviewerAssignments.set(slotDateStr, (reviewerAssignments.get(slotDateStr) || 0) + 1);
 
         assigned = true;
         break;
       }
 
-      // --- Phase 2: Fallback (force schedule even if not ideal) ---
+      // --- Phase 2: Fallback (if no preferred slot works, still try ANY slot but respect 8-per-day rule) ---
       if (!assigned) {
         for (const slot of slots) {
           const slotKey = `${slot.date.toISOString()}_${slot.startTime}`;
+          const slotDateStr = slot.date.toISOString().split('T')[0];
+
           const sUsed = usedByUser.get(supervisorId) || new Set();
           const rUsed = usedByUser.get(reviewerId) || new Set();
           const roomUsed = usedRooms.get(slotKey) || new Set();
 
           if (sUsed.has(slotKey) || rUsed.has(slotKey)) continue;
+
+          // 🚨 enforce 8 topics/day again
+          const reviewerAssignments = reviewerDayAssignments.get(reviewerId) || new Map();
+          const assignedCount = reviewerAssignments.get(slotDateStr) || 0;
+          if (assignedCount >= 8) continue;
 
           let availableRoom: any = null;
           for (const room of rooms) {
@@ -199,21 +183,26 @@ export async function runScheduler() {
             data: { topicId: topic.id, roomId: availableRoom.id, slotId: slot.id },
           });
 
-          // Track usage
           sUsed.add(slotKey);
           rUsed.add(slotKey);
           roomUsed.add(availableRoom.id);
           usedByUser.set(supervisorId, sUsed);
           usedByUser.set(reviewerId, rUsed);
           usedRooms.set(slotKey, roomUsed);
-
           reviewerRoomLock.set(reviewerId, availableRoom.id);
+
+          let reviewerAssignments2 = reviewerDayAssignments.get(reviewerId);
+          if (!reviewerAssignments2) {
+            reviewerAssignments2 = new Map();
+            reviewerDayAssignments.set(reviewerId, reviewerAssignments2);
+          }
+          reviewerAssignments2.set(slotDateStr, (reviewerAssignments2.get(slotDateStr) || 0) + 1);
+
           assigned = true;
           break;
         }
       }
 
-      // --- If still not assigned (no slots at all) ---
       if (!assigned) {
         await prisma.conflict.create({
           data: { topicId: topic.id, reason: 'No slots left at all' },
@@ -221,7 +210,7 @@ export async function runScheduler() {
       }
     }
 
-    console.log('✅ Scheduler completed: all topics assigned if slots exist.');
+    console.log('✅ Scheduler completed with strict 8-topics-per-day reviewer rule.');
   } catch (err) {
     console.error('❌ Scheduler error:', err);
     throw err;

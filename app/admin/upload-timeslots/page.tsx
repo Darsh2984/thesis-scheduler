@@ -146,15 +146,23 @@ export default function UploadTimeSlotsPage() {
             </tr>
           </thead>
           <tbody>
-            {rows.map(r => (
-              <tr key={r.id}>
-                <td>{r.id}</td>
-                <td>{r.date}</td>
-                <td>{r.start}</td>
-                <td>{r.end}</td>
-              </tr>
-            ))}
+  {rows.map(r => (
+    <tr key={r.id}>
+      <td>{r.id}</td>
+      <td>
+        {new Date(r.date).toLocaleDateString("en-US", {
+          weekday: "long",
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+        })}
+      </td>
+      <td>{r.start}</td>
+      <td>{r.end}</td>
+    </tr>
+  ))}
           </tbody>
+
         </table>
       </div>
     </div>
