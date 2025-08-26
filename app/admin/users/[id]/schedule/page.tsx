@@ -6,6 +6,9 @@ import { useEffect, useState } from 'react';
 type ScheduleRow = {
   scheduleId: number;
   topicTitle: string;
+  studentId: string;
+  studentName: string;
+  studentEmail: string;
   role: string;
   date: string;
   startTime: string;
@@ -68,6 +71,9 @@ export default function UserSchedulePage() {
           <table className="table">
             <thead>
               <tr>
+                <th>Student ID</th>
+                <th>Student Name</th>
+                <th>Student Email</th>
                 <th>Topic</th>
                 <th>Role</th>
                 <th>Date</th>
@@ -78,6 +84,9 @@ export default function UserSchedulePage() {
             <tbody>
               {schedule.map((s) => (
                 <tr key={s.scheduleId}>
+                  <td>{s.studentId}</td>
+                  <td>{s.studentName}</td>
+                  <td>{s.studentEmail}</td>
                   <td>{s.topicTitle}</td>
                   <td>
                     <span className="badge">{s.role}</span>

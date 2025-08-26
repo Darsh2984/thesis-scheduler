@@ -19,8 +19,11 @@ export async function POST(req) {
       return new Response(JSON.stringify({ error: 'No rows found in Excel file' }), { status: 400 });
     }
 
-    // ✅ Enforce exact column names
+    // ✅ Require student columns too
     const REQUIRED_COLS = [
+      'Student ID',
+      'Student Name',
+      'Student Email',
       'Title',
       'Supervisor Name',
       'Supervisor Email',
@@ -37,19 +40,22 @@ export async function POST(req) {
       }
     }
 
-    // Clear old data
+    // Clear old topics
     await prisma.schedule.deleteMany();
     await prisma.bachelorTopic.deleteMany();
 
     for (const row of data) {
+      const studentId = row['Student ID'];
+      const studentName = row['Student Name'];
+      const studentEmail = row['Student Email'];
       const title = row['Title'];
       const supName = row['Supervisor Name'];
       const supEmail = row['Supervisor Email'];
       const revName = row['Reviewer Name'];
       const revEmail = row['Reviewer Email'];
 
-      if (!title || !supEmail || !revEmail) {
-        console.warn('⚠️ Skipping due to missing fields:', { title, supEmail, revEmail });
+      if (!studentId || !studentName || !studentEmail || !title || !supEmail || !revEmail) {
+        console.warn('⚠️ Skipping row due to missing fields:', row);
         continue;
       }
 
@@ -75,13 +81,16 @@ export async function POST(req) {
 
       await prisma.bachelorTopic.create({
         data: {
+          studentId,
+          studentName,
+          studentEmail,
           title,
           supervisorId: supervisor.id,
           reviewerId: reviewer.id,
         },
       });
 
-      console.log(`✅ Inserted topic: ${title}`);
+      console.log(`✅ Inserted topic for student ${studentName} (${studentId})`);
     }
 
     return new Response(JSON.stringify({ message: 'Topics uploaded successfully' }), { status: 200 });

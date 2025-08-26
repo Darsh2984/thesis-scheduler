@@ -11,6 +11,9 @@ export async function GET() {
     count: rows.length,
     rows: rows.map((t) => ({
       id: t.id,
+      studentId: t.studentId,
+      studentName: t.studentName,
+      studentEmail: t.studentEmail,
       title: t.title,
       supervisor: t.supervisor?.name || '',
       examiner: t.reviewer?.name || '',

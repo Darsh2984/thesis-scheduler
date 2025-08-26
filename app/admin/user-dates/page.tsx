@@ -14,7 +14,6 @@ export default function UserDatesPage() {
   const [unavailability, setUnavailability] = useState<UnavailabilityRow[]>([]);
   const [preferred, setPreferred] = useState<PreferredRow[]>([]);
 
-  // ✅ Load users and existing data
   useEffect(() => {
     load();
   }, []);
@@ -42,13 +41,11 @@ export default function UserDatesPage() {
       return;
     }
     setStatus('⏳ Saving...');
-
     const res = await fetch(`/api/${type}/add-range`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userId: selectedUser, from, to }),
     });
-
     const data = await res.json();
     setStatus(data.message || data.error);
     await load();
@@ -60,16 +57,27 @@ export default function UserDatesPage() {
       return;
     }
     setStatus('⏳ Saving...');
-
     const res = await fetch(`/api/${type}/add-single`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userId: selectedUser, date: singleDate }),
     });
-
     const data = await res.json();
     setStatus(data.message || data.error);
     await load();
+  };
+
+  // ✅ NEW: remove handler
+  const removeDate = async (type: 'unavailability' | 'preferred', id: number) => {
+    setStatus('⏳ Removing...');
+    try {
+      const res = await fetch(`/api/${type}/delete/${id}`, { method: 'DELETE' });
+      const data = await res.json();
+      setStatus(data.message || data.error);
+      await load();
+    } catch {
+      setStatus('❌ Failed to remove');
+    }
   };
 
   return (
@@ -81,11 +89,11 @@ export default function UserDatesPage() {
         <label className="block font-medium">Select User</label>
         <select
           value={selectedUser}
-          onChange={e => setSelectedUser(e.target.value)}
+          onChange={(e) => setSelectedUser(e.target.value)}
           className="border p-2 rounded w-full"
         >
           <option value="">-- Choose User --</option>
-          {users.map(u => (
+          {users.map((u) => (
             <option key={u.id} value={u.id}>
               {u.name}
             </option>
@@ -100,7 +108,7 @@ export default function UserDatesPage() {
           <input
             type="date"
             value={from}
-            onChange={e => setFrom(e.target.value)}
+            onChange={(e) => setFrom(e.target.value)}
             className="border p-2 rounded w-full"
           />
         </div>
@@ -109,13 +117,12 @@ export default function UserDatesPage() {
           <input
             type="date"
             value={to}
-            onChange={e => setTo(e.target.value)}
+            onChange={(e) => setTo(e.target.value)}
             className="border p-2 rounded w-full"
           />
         </div>
       </div>
 
-      {/* Buttons for range */}
       <div className="flex gap-4">
         <button onClick={() => addRange('unavailability')} className="btn">
           Add Unavailability (Range)
@@ -131,7 +138,7 @@ export default function UserDatesPage() {
         <input
           type="date"
           value={singleDate}
-          onChange={e => setSingleDate(e.target.value)}
+          onChange={(e) => setSingleDate(e.target.value)}
           className="border p-2 rounded w-full"
         />
       </div>
@@ -152,14 +159,27 @@ export default function UserDatesPage() {
         <div className="card" style={{ maxHeight: '40vh', overflow: 'auto' }}>
           <table className="table">
             <thead>
-              <tr><th>ID</th><th>User</th><th>Date</th></tr>
+              <tr>
+                <th>ID</th>
+                <th>User</th>
+                <th>Date</th>
+                <th>Action</th>
+              </tr>
             </thead>
             <tbody>
-              {unavailability.map(r => (
+              {unavailability.map((r) => (
                 <tr key={r.id}>
                   <td>{r.id}</td>
                   <td>{r.user}</td>
                   <td>{r.date}</td>
+                  <td>
+                    <button
+                      className="text-red-600 underline"
+                      onClick={() => removeDate('unavailability', r.id)}
+                    >
+                      Remove
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -170,14 +190,27 @@ export default function UserDatesPage() {
         <div className="card" style={{ maxHeight: '40vh', overflow: 'auto' }}>
           <table className="table">
             <thead>
-              <tr><th>ID</th><th>User</th><th>Date</th></tr>
+              <tr>
+                <th>ID</th>
+                <th>User</th>
+                <th>Date</th>
+                <th>Action</th>
+              </tr>
             </thead>
             <tbody>
-              {preferred.map(r => (
+              {preferred.map((r) => (
                 <tr key={r.id}>
                   <td>{r.id}</td>
                   <td>{r.user}</td>
                   <td>{r.date}</td>
+                  <td>
+                    <button
+                      className="text-red-600 underline"
+                      onClick={() => removeDate('preferred', r.id)}
+                    >
+                      Remove
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>

@@ -24,6 +24,9 @@ export async function GET(req) {
       result.push({
         scheduleId: s.id,
         topicTitle: s.topic.title,
+        studentId: s.topic.studentId,
+        studentName: s.topic.studentName,
+        studentEmail: s.topic.studentEmail,
         date: s.slot.date.toISOString().split('T')[0],
         startTime: s.slot.startTime,
         endTime: s.slot.endTime,

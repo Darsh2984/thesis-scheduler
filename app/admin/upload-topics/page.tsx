@@ -2,7 +2,15 @@
 
 import { useState, useEffect, ChangeEvent, FormEvent } from 'react';
 
-type Row = { id: number; title: string; supervisor: string; examiner: string };
+type Row = { 
+  id: number; 
+  title: string; 
+  studentId: string;
+  studentName: string;
+  studentEmail: string;
+  supervisor: string; 
+  examiner: string 
+};
 
 export default function UploadTopicsPage() {
   const [file, setFile] = useState<File | null>(null);
@@ -10,7 +18,6 @@ export default function UploadTopicsPage() {
   const [error, setError] = useState<string>('');
   const [rows, setRows] = useState<Row[]>([]);
 
-  // Load topics already in DB
   const load = async () => {
     try {
       const res = await fetch('/api/upload-topics/list');
@@ -89,12 +96,15 @@ export default function UploadTopicsPage() {
       )}
 
       <h3 style={{ marginTop: 20 }}>In database ({rows.length})</h3>
-      <div className="card" style={{ overflow: 'auto', maxHeight: '50vh' }}>
+      <div className="card" style={{ overflow: 'auto', maxHeight: '60vh' }}>
         <table className="table">
           <thead>
             <tr>
               <th>ID</th>
-              <th>Title</th>
+              <th>Student ID</th>
+              <th>Student Name</th>
+              <th>Student Email</th>
+              <th>Topic</th>
               <th>Supervisor</th>
               <th>Examiner</th>
             </tr>
@@ -103,6 +113,9 @@ export default function UploadTopicsPage() {
             {rows.map((r) => (
               <tr key={r.id}>
                 <td>{r.id}</td>
+                <td>{r.studentId}</td>
+                <td>{r.studentName}</td>
+                <td>{r.studentEmail}</td>
                 <td>{r.title}</td>
                 <td>{r.supervisor}</td>
                 <td>{r.examiner}</td>

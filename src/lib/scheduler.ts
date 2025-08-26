@@ -9,36 +9,43 @@ export async function runScheduler() {
       include: { supervisor: true, reviewer: true },
     });
 
+    // Count how many topics each reviewer has
     const reviewerTopicCounts = new Map<number, number>();
-    const reviewerRequiredDays = new Map<number, number>(); 
+    const reviewerRequiredDays = new Map<number, number>();
 
     for (const topic of topics) {
-      const count = (reviewerTopicCounts.get(topic.reviewerId) || 0) + 1;
-      reviewerTopicCounts.set(topic.reviewerId, count);
+      const r = topic.reviewer;
+      if (!r) continue;
+      const count = (reviewerTopicCounts.get(r.id) || 0) + 1;
+      reviewerTopicCounts.set(r.id, count);
     }
 
     for (const [reviewerId, count] of reviewerTopicCounts) {
+      const reviewer = topics.find(t => t.reviewerId === reviewerId)?.reviewer;
+      if (!reviewer) continue;
+
+      if (reviewer.role === 'FT_SUPERVISOR') {
+        reviewerRequiredDays.set(reviewerId, 0);
+        continue;
+      }
+
       let requiredDays = 1;
-      if (count > 6 && count <= 12) requiredDays = 2;
-      else if (count > 12) requiredDays = 3;
+      if (count > 8 && count <= 15) requiredDays = 2;
+      else if (count > 15) requiredDays = 3;
+
+      if (reviewer.role === 'BOTH') {
+        requiredDays = Math.min(requiredDays, 2);
+      }
+
       reviewerRequiredDays.set(reviewerId, requiredDays);
     }
 
-    function getDateStr(date: Date): string {
-      return date.toISOString().split('T')[0];
-    }
-
-    function countTopicsPerDay(userId: number, dateStr: string, usedByUser: Map<number, Set<string>>): number {
-      const userSlots = usedByUser.get(userId) || new Set();
-      return Array.from(userSlots).filter(slot => slot.startsWith(dateStr)).length;
-    }
-
-    const slots = await prisma.timeSlot.findMany();
+    const slots = await prisma.timeSlot.findMany({ orderBy: { date: 'asc' } });
     const rooms = await prisma.room.findMany();
     const unavailability = await prisma.userUnavailability.findMany();
     const preferredDates = await prisma.preferredDate.findMany();
 
-    // Map: userId -> Set<YYYY-MM-DD>
+    // Maps for unavailability & preferences
     const unavailableMap = new Map<number, Set<string>>();
     for (const entry of unavailability) {
       const d = entry.date.toISOString().split('T')[0];
@@ -46,7 +53,6 @@ export async function runScheduler() {
       unavailableMap.get(entry.userId)!.add(d);
     }
 
-    // Map: userId -> Set<YYYY-MM-DD>
     const preferredMap = new Map<number, Set<string>>();
     for (const entry of preferredDates) {
       const d = entry.date.toISOString().split('T')[0];
@@ -54,18 +60,51 @@ export async function runScheduler() {
       preferredMap.get(entry.userId)!.add(d);
     }
 
-    const usedByUser = new Map<number, Set<string>>();  // userId -> Set of slot keys
-    const usedRooms = new Map<string, Set<number>>();   // slotKey -> Set of room IDs
-    const reviewerRoomLock = new Map<number, number>(); // reviewerId -> locked roomId
-    const reviewerDayCount = new Map<number, Set<string>>(); // reviewerId -> Set of used dates
-    
+    // Usage tracking
+    const usedByUser = new Map<number, Set<string>>();
+    const usedRooms = new Map<string, Set<number>>();
+    const reviewerRoomLock = new Map<number, number>();
+    const reviewerDayCount = new Map<number, Set<string>>();
 
+    // === LOOP over topics ===
     for (const topic of topics) {
       const { supervisorId, reviewerId } = topic;
+      const supervisor = topic.supervisor;
       const reviewer = topic.reviewer;
 
-      // 1. Filter out slots where supervisor/reviewer is unavailable or already busy
-        const validSlots = slots.filter(slot => {
+      // Missing supervisor/reviewer handling
+      if (!supervisor) {
+        await prisma.conflict.create({
+          data: { topicId: topic.id, reason: 'Supervisor not found in Users list' },
+        });
+        continue;
+      }
+      if (!reviewer) {
+        await prisma.conflict.create({
+          data: { topicId: topic.id, reason: 'Reviewer not found in Users list' },
+        });
+        continue;
+      }
+
+      // Invalid role rules
+      if (reviewer.role === 'FT_SUPERVISOR') {
+        await prisma.conflict.create({
+          data: { topicId: topic.id, reason: 'Reviewer is FT_SUPERVISOR (not allowed)' },
+        });
+        continue;
+      }
+      if (supervisor.role === 'REVIEWER') {
+        await prisma.conflict.create({
+          data: { topicId: topic.id, reason: 'Supervisor is REVIEWER (not allowed)' },
+        });
+        continue;
+      }
+
+      // ============ SLOT SELECTION ============
+      let assigned = false;
+
+      // --- Phase 1: Try to respect preferences and reviewer load balancing ---
+      const validSlots = slots.filter(slot => {
         const slotKey = `${slot.date.toISOString()}_${slot.startTime}`;
         const dateStr = slot.date.toISOString().split('T')[0];
 
@@ -77,111 +116,112 @@ export async function runScheduler() {
         if (supervisorUnavailable || reviewerUnavailable || supervisorUsed || reviewerUsed) {
           return false;
         }
-
-        // Reviewer day count limit
-        if (reviewer.role === 'REVIEWER') {
-  const days = reviewerDayCount.get(reviewerId) || new Set();
-  const requiredDays = reviewerRequiredDays.get(reviewerId) || 1;
-  const topicsForReviewer = reviewerTopicCounts.get(reviewerId) || 0;
-  
-  // Calculate target per day (rounded up)
-  const targetPerDay = Math.ceil(topicsForReviewer / requiredDays);
-  
-  // Check if adding to this day would exceed target
-      if (days.has(dateStr)) {
-          const topicsThisDay = Array.from(usedByUser.get(reviewerId) || [])
-            .filter(slot => slot.startsWith(dateStr)).length;
-          
-          if (topicsThisDay >= targetPerDay) {
-            return false; // Already reached target for this day
-          }
-        } else {
-          if (days.size >= requiredDays) {
-            return false; // Already using all required days
-          }
-        }
-      }
-
         return true;
       });
 
-      // 2. Sort validSlots so preferred dates come first
+      // Sort slots: prioritize supervisor/reviewer preferred dates first
       validSlots.sort((a, b) => {
         const aDate = a.date.toISOString().split('T')[0];
         const bDate = b.date.toISOString().split('T')[0];
         const prefS = preferredMap.get(supervisorId) || new Set();
-        const prefR = preferredMap.get(reviewerId) || new Set();
+        const prefR = reviewerId ? preferredMap.get(reviewerId) || new Set() : new Set();
         const aScore = (prefS.has(aDate) ? 1 : 0) + (prefR.has(aDate) ? 1 : 0);
         const bScore = (prefS.has(bDate) ? 1 : 0) + (prefR.has(bDate) ? 1 : 0);
         return bScore - aScore;
       });
 
-      let assigned = false;
-
+      // Try to assign a preferred slot
       for (const slot of validSlots) {
         const slotKey = `${slot.date.toISOString()}_${slot.startTime}`;
         const slotDateStr = slot.date.toISOString().split('T')[0];
+
         const sUsed = usedByUser.get(supervisorId) || new Set();
         const rUsed = usedByUser.get(reviewerId) || new Set();
         const roomUsed = usedRooms.get(slotKey) || new Set();
 
-        // Find a valid room
-        let availableRoom = null;
+        let availableRoom: any = null;
         for (const room of rooms) {
           if (roomUsed.has(room.id)) continue;
-
           const lockedRoom = reviewerRoomLock.get(reviewerId);
-          if (reviewer.role === 'REVIEWER' && lockedRoom && lockedRoom !== room.id) continue;
-
+          if (reviewer.role !== 'FT_SUPERVISOR' && lockedRoom && lockedRoom !== room.id) {
+            continue;
+          }
           availableRoom = room;
           break;
         }
 
         if (!availableRoom) continue;
 
-        // Schedule
         await prisma.schedule.create({
-          data: {
-            topicId: topic.id,
-            roomId: availableRoom.id,
-            slotId: slot.id,
-          },
+          data: { topicId: topic.id, roomId: availableRoom.id, slotId: slot.id },
         });
 
+        // Track usage
         sUsed.add(slotKey);
         rUsed.add(slotKey);
         roomUsed.add(availableRoom.id);
-
         usedByUser.set(supervisorId, sUsed);
         usedByUser.set(reviewerId, rUsed);
         usedRooms.set(slotKey, roomUsed);
+        reviewerRoomLock.set(reviewerId, availableRoom.id);
 
-        // Reviewer room lock
-        if (reviewer.role === 'REVIEWER') {
-          reviewerRoomLock.set(reviewerId, availableRoom.id);
-          let days = reviewerDayCount.get(reviewerId);
-          if (!days) {
-            days = new Set();
-            reviewerDayCount.set(reviewerId, days);
-          }
-          days.add(slotDateStr);
+        let days = reviewerDayCount.get(reviewerId);
+        if (!days) {
+          days = new Set();
+          reviewerDayCount.set(reviewerId, days);
         }
+        days.add(slotDateStr);
 
         assigned = true;
         break;
       }
 
+      // --- Phase 2: Fallback (force schedule even if not ideal) ---
+      if (!assigned) {
+        for (const slot of slots) {
+          const slotKey = `${slot.date.toISOString()}_${slot.startTime}`;
+          const sUsed = usedByUser.get(supervisorId) || new Set();
+          const rUsed = usedByUser.get(reviewerId) || new Set();
+          const roomUsed = usedRooms.get(slotKey) || new Set();
+
+          if (sUsed.has(slotKey) || rUsed.has(slotKey)) continue;
+
+          let availableRoom: any = null;
+          for (const room of rooms) {
+            if (!roomUsed.has(room.id)) {
+              availableRoom = room;
+              break;
+            }
+          }
+          if (!availableRoom) continue;
+
+          await prisma.schedule.create({
+            data: { topicId: topic.id, roomId: availableRoom.id, slotId: slot.id },
+          });
+
+          // Track usage
+          sUsed.add(slotKey);
+          rUsed.add(slotKey);
+          roomUsed.add(availableRoom.id);
+          usedByUser.set(supervisorId, sUsed);
+          usedByUser.set(reviewerId, rUsed);
+          usedRooms.set(slotKey, roomUsed);
+
+          reviewerRoomLock.set(reviewerId, availableRoom.id);
+          assigned = true;
+          break;
+        }
+      }
+
+      // --- If still not assigned (no slots at all) ---
       if (!assigned) {
         await prisma.conflict.create({
-          data: {
-            topicId: topic.id,
-            reason: 'No available slot (conflict: unavailability, room, limit, or schedule clash)',
-          },
+          data: { topicId: topic.id, reason: 'No slots left at all' },
         });
       }
     }
 
-    console.log('✅ Scheduler completed with preferred dates and reviewer day limits.');
+    console.log('✅ Scheduler completed: all topics assigned if slots exist.');
   } catch (err) {
     console.error('❌ Scheduler error:', err);
     throw err;
