@@ -1,36 +1,49 @@
-import { read, utils } from 'xlsx';
 import { prisma } from '@/lib/prisma';
 
 export async function POST(req) {
-  const formData = await req.formData();
-  const file = formData.get('file');
-
-  if (!file) {
-    return new Response(JSON.stringify({ error: 'No file uploaded' }), { status: 400 });
-  }
-
   try {
+    const body = await req.json();
+    const { name } = body;
 
-
-    const buffer = Buffer.from(await file.arrayBuffer());
-    const workbook = read(buffer, { type: 'buffer' });
-    const sheet = workbook.Sheets[workbook.SheetNames[0]];
-    const data = utils.sheet_to_json(sheet);
-
-    await prisma.schedule.deleteMany();
-    await prisma.room.deleteMany();
-
-
-    for (const row of data) {
-      const name = row['Room Name'];
-      if (!name) continue;
-
-      await prisma.room.create({ data: { name } });
+    if (!name || !name.trim()) {
+      return new Response(JSON.stringify({ error: 'Room name required' }), { status: 400 });
     }
 
-    return new Response(JSON.stringify({ message: 'Rooms uploaded successfully' }), { status: 200 });
+    const room = await prisma.room.create({
+      data: { name: name.trim() },
+    });
+
+    return new Response(JSON.stringify({ message: 'Room created', room }), { status: 200 });
   } catch (error) {
-    console.error('❌ Upload error:', error);
-    return new Response(JSON.stringify({ error: 'Failed to parse Excel file' }), { status: 500 });
+    console.error('❌ Error saving room:', error);
+    return new Response(JSON.stringify({ error: error.message || 'Failed to save room' }), { status: 500 });
+  }
+}
+
+export async function GET() {
+  try {
+    const rows = await prisma.room.findMany({ orderBy: { id: 'asc' } });
+    return new Response(JSON.stringify({ rows }), { status: 200 });
+  } catch (error) {
+    console.error('❌ Error fetching rooms:', error);
+    return new Response(JSON.stringify({ error: 'Failed to fetch rooms' }), { status: 500 });
+  }
+}
+
+export async function DELETE(req) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const id = parseInt(searchParams.get('id'));
+
+    if (!id) {
+      return new Response(JSON.stringify({ error: 'Room id required' }), { status: 400 });
+    }
+
+    await prisma.room.delete({ where: { id } });
+
+    return new Response(JSON.stringify({ message: 'Room deleted' }), { status: 200 });
+  } catch (error) {
+    console.error('❌ Error deleting room:', error);
+    return new Response(JSON.stringify({ error: 'Failed to delete room' }), { status: 500 });
   }
 }

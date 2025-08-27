@@ -31,7 +31,7 @@ export async function runScheduler() {
 
     // Usage tracking
     const usedByUser = new Map<number, Set<string>>(); // slotKey per user
-    const usedRooms = new Map<string, Set<number>>();  // room ids per slotKey
+    const usedRooms = new Map<string, Set<number>>();  // slotKey -> set of roomIds
     const reviewerDayAssignments = new Map<number, Map<string, number>>(); // reviewerId -> date -> count
     const reviewerRoomDayLock = new Map<number, Map<string, number>>(); // reviewerId -> date -> roomId
 
@@ -128,36 +128,33 @@ export async function runScheduler() {
           const roomUsed = usedRooms.get(slotKey) || new Set();
 
           // === Room locking per day ===
-          let lockedRoomId: number | null = null;
-          const reviewerDayRooms = reviewerRoomDayLock.get(reviewerId) || new Map();
-          if (reviewerDayRooms.has(slotDateStr)) {
-            lockedRoomId = reviewerDayRooms.get(slotDateStr)!;
-          }
+          let reviewerDayRooms = reviewerRoomDayLock.get(reviewerId) || new Map();
+          let lockedRoomId: number | null = reviewerDayRooms.get(slotDateStr) || null;
 
           let availableRoom: any = null;
-          for (const room of rooms) {
-            if (roomUsed.has(room.id)) continue;
-
-            // If already locked for that day, only accept that room
-            if (lockedRoomId && room.id !== lockedRoomId) continue;
-
-            availableRoom = room;
-            break;
-          }
-
-          if (!availableRoom) {
-            // if no locked room free, assign new room and lock it for this day
+          if (lockedRoomId) {
+            // Reviewer is already locked to a room today → must reuse it
+            if (!roomUsed.has(lockedRoomId)) {
+              availableRoom = rooms.find(r => r.id === lockedRoomId);
+            } else {
+              // Room busy this slot → skip this slot entirely
+              continue;
+            }
+          } else {
+            // Reviewer not yet locked today → assign first free room and lock it
             for (const room of rooms) {
-              if (roomUsed.has(room.id)) continue;
-              availableRoom = room;
-              reviewerDayRooms.set(slotDateStr, room.id);
-              reviewerRoomDayLock.set(reviewerId, reviewerDayRooms);
-              break;
+              if (!roomUsed.has(room.id)) {
+                availableRoom = room;
+                reviewerDayRooms.set(slotDateStr, room.id);
+                reviewerRoomDayLock.set(reviewerId, reviewerDayRooms);
+                break;
+              }
             }
           }
 
           if (!availableRoom) continue;
 
+          // Create schedule
           await prisma.schedule.create({
             data: { topicId: topic.id, roomId: availableRoom.id, slotId: slot.id },
           });
@@ -177,11 +174,6 @@ export async function runScheduler() {
           }
           reviewerAssignments.set(slotDateStr, (reviewerAssignments.get(slotDateStr) || 0) + 1);
 
-          // lock reviewer to chosen room for that day
-          const reviewerDayRoomsFinal = reviewerRoomDayLock.get(reviewerId) || new Map();
-          reviewerDayRoomsFinal.set(slotDateStr, availableRoom.id);
-          reviewerRoomDayLock.set(reviewerId, reviewerDayRoomsFinal);
-
           assigned = true;
           break;
         }
@@ -194,7 +186,7 @@ export async function runScheduler() {
       }
     }
 
-    console.log('✅ Scheduler completed with flexible per-day room locking and 8/day rule.');
+    console.log('✅ Scheduler completed with strict per-day room locking + 8/day rule.');
   } catch (err) {
     console.error('❌ Scheduler error:', err);
     throw err;
