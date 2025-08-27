@@ -12,6 +12,7 @@ type User = {
 
 export default function UsersPage() {
   const [users, setUsers] = useState<User[]>([]);
+  const [search, setSearch] = useState(''); // ✅ search term
 
   useEffect(() => {
     fetch('/api/users')
@@ -24,24 +25,36 @@ export default function UsersPage() {
   }, []);
 
   const handleDownloadCSV = async (userId: number, userName: string) => {
-  const res = await fetch(`/api/users/${userId}/schedule/csv`);
-  const blob = await res.blob();
-  const url = window.URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  // ✅ sanitize the username (replace spaces with underscores)
-  const safeName = userName.replace(/\s+/g, "_");
-  a.download = `${safeName}_Schedule.csv`;
-  a.click();
-};
+    const res = await fetch(`/api/users/${userId}/schedule/csv`);
+    const blob = await res.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    // ✅ sanitize the username (replace spaces with underscores)
+    const safeName = userName.replace(/\s+/g, "_");
+    a.download = `${safeName}_Schedule.csv`;
+    a.click();
+  };
 
-
-
-  
+  // ✅ Filter users by search
+  const filteredUsers = users.filter((user) =>
+    user.name.toLowerCase().includes(search.toLowerCase())
+  );
 
   return (
     <div className="container">
       <h1 className="pageTitle">All Users</h1>
+
+      {/* 🔍 Search Box */}
+      <div className="mb-4">
+        <input
+          type="text"
+          placeholder="Search by name..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="border rounded px-3 py-2 w-full"
+        />
+      </div>
 
       <div className="card" style={{ overflow: 'auto', maxHeight: '70vh' }}>
         <table className="table">
@@ -54,7 +67,7 @@ export default function UsersPage() {
             </tr>
           </thead>
           <tbody>
-            {users.map((user) => (
+            {filteredUsers.map((user) => (
               <tr key={user.id}>
                 <td>{user.id}</td>
                 <td>
@@ -80,8 +93,6 @@ export default function UsersPage() {
                     >
                       CSV
                     </button>
-
-                  
                   </div>
                 </td>
               </tr>
@@ -90,7 +101,7 @@ export default function UsersPage() {
         </table>
       </div>
 
-      {users.length === 0 && (
+      {filteredUsers.length === 0 && (
         <p style={{ marginTop: 16, color: '#6b7280' }}>No users found.</p>
       )}
     </div>
