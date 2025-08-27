@@ -57,7 +57,7 @@ export default function ScheduleClient({
   allSlots: SlotRoom[];
 }) {
   // === CSV Export (scheduled only) ===
-  const handleExportCSV = () => {
+    const handleExportScheduleCSV = () => {
     const headers = [
       "Student ID",
       "Student Name",
@@ -94,32 +94,63 @@ export default function ScheduleClient({
 
     const link = document.createElement("a");
     link.href = url;
-    link.setAttribute("download", "schedule.csv");
+    // ✅ updated name
+    link.setAttribute("download", "Defenses_Schedule.csv");
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
 
+
   // === Unused slots (slot × room not in any schedule) ===
-  const usedKeys = new Set(
-    schedules.map((s) => `${s.slot.id}-${s.room.id}`)
-  );
+  const usedKeys = new Set(schedules.map((s) => `${s.slot.id}-${s.room.id}`));
   const unusedSlots = allSlots.filter(
     (sr) => !usedKeys.has(`${sr.slotId}-${sr.roomId}`)
   );
+
+  // === CSV Export (unused slots) ===
+  const handleExportUnusedCSV = () => {
+    const headers = ["Date", "Time", "Room"];
+
+    const rows = unusedSlots.map((sr) => [
+      formatDateLong(sr.date),
+      `from ${sr.startTime.slice(0, 5)} to ${sr.endTime.slice(0, 5)}`,
+      sr.room.name,
+    ]);
+
+    const csvContent =
+      [headers, ...rows]
+        .map((row) =>
+          row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")
+        )
+        .join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", "Unused_Slots.csv"); // ✅ file name
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   return (
     <div className="container">
       <h1 className="pageTitle">Scheduled Presentations</h1>
 
-      {/* Export Button */}
-      <button
-        onClick={handleExportCSV}
-        className="btn"
-        style={{ marginBottom: 16 }}
-      >
-        ⬇️ Download Schedule (CSV)
-      </button>
+      {/* Export Buttons */}
+      <div className="flex gap-2 mb-4">
+        <button onClick={handleExportScheduleCSV} className="btn">
+          ⬇️ Download Schedule (CSV)
+        </button>
+        {unusedSlots.length > 0 && (
+          <button onClick={handleExportUnusedCSV} className="btn">
+            ⬇️ Download Unused Slots (CSV)
+          </button>
+        )}
+      </div>
 
       {/* Schedule Table */}
       <div className="card" style={{ overflow: "auto", maxHeight: "70vh" }}>
@@ -149,7 +180,8 @@ export default function ScheduleClient({
                 <td>{s.room.name}</td>
                 <td>{formatDateLong(s.slot.date)}</td>
                 <td>
-                  from {s.slot.startTime.slice(0, 5)} to {s.slot.endTime.slice(0, 5)}
+                  from {s.slot.startTime.slice(0, 5)} to{" "}
+                  {s.slot.endTime.slice(0, 5)}
                 </td>
               </tr>
             ))}
@@ -159,7 +191,8 @@ export default function ScheduleClient({
 
       {schedules.length === 0 && (
         <p style={{ marginTop: 16, color: "#6b7280" }}>
-          No schedules generated yet. Click <strong>Generate Schedule</strong> in the menu to create one.
+          No schedules generated yet. Click <strong>Generate Schedule</strong> in
+          the menu to create one.
         </p>
       )}
 
@@ -200,7 +233,9 @@ export default function ScheduleClient({
       <div style={{ marginTop: 40 }}>
         <h2 className="pageTitle">Unused Slots</h2>
         {unusedSlots.length === 0 ? (
-          <p className="text-green-600">🎉 No unused slots — all slots are assigned!</p>
+          <p className="text-green-600">
+            🎉 No unused slots — all slots are assigned!
+          </p>
         ) : (
           <div className="card" style={{ overflow: "auto", maxHeight: "50vh" }}>
             <table className="table">

@@ -23,28 +23,21 @@ export default function UsersPage() {
       });
   }, []);
 
-  const handleDownloadCSV = async (userId) => {
-    const res = await fetch(`/api/users/${userId}/schedule/csv`);
-    const blob = await res.blob();
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `schedule_user_${userId}.csv`;
-    a.click();
-  };
+  const handleDownloadCSV = async (userId: number, userName: string) => {
+  const res = await fetch(`/api/users/${userId}/schedule/csv`);
+  const blob = await res.blob();
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  // ✅ sanitize the username (replace spaces with underscores)
+  const safeName = userName.replace(/\s+/g, "_");
+  a.download = `${safeName}_Schedule.csv`;
+  a.click();
+};
 
 
-  const handleSendEmail = async (userId: number) => {
-    const res = await fetch(`/api/users/${userId}/schedule/email`, {
-      method: 'POST',
-    });
 
-    if (res.ok) {
-      alert('✅ Email sent successfully!');
-    } else {
-      alert('❌ Failed to send email.');
-    }
-  };
+  
 
   return (
     <div className="container">
@@ -82,18 +75,13 @@ export default function UsersPage() {
                     </Link>
                     <button
                       className="btn"
-                      style={{ borderColor: '#16a34a', color: '#16a34a' }}
-                      onClick={() => handleDownloadCSV(user.id)}
+                      style={{ borderColor: "#16a34a", color: "#16a34a" }}
+                      onClick={() => handleDownloadCSV(user.id, user.name)}
                     >
                       CSV
                     </button>
-                    <button
-                      className="btn"
-                      style={{ borderColor: '#4f46e5', color: '#4f46e5' }}
-                      onClick={() => handleSendEmail(user.id)}
-                    >
-                      Email
-                    </button>
+
+                  
                   </div>
                 </td>
               </tr>
