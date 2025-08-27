@@ -54,6 +54,16 @@ export default function UserSchedulePage() {
   if (loading) return <p className="p-6">⏳ Loading schedule...</p>;
 
   if (!user) return <p className="p-6 text-red-500">❌ User not found.</p>;
+  function formatDateLong(dateStr: string | Date): string {
+    const d = new Date(dateStr);
+    return d.toLocaleDateString("en-US", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+  }
+
 
   return (
     <div className="container">
@@ -70,37 +80,46 @@ export default function UserSchedulePage() {
         <div className="card" style={{ overflow: 'auto', maxHeight: '70vh' }}>
           <table className="table">
             <thead>
-              <tr>
-                <th>Student ID</th>
-                <th>Student Name</th>
-                <th>Student Email</th>
-                <th>Topic</th>
-                <th>Role</th>
-                <th>Date</th>
-                <th>Time</th>
-                <th>Room</th>
-              </tr>
-            </thead>
-            <tbody>
-              {schedule.map((s) => (
+  <tr>
+    <th>Student ID</th>
+    <th>Student Name</th>
+    <th>Student Email</th>
+    <th>Topic</th>
+    <th>Role</th>
+    <th>Counterpart</th>
+    <th>Date</th>
+    <th>Time</th>
+    <th>Room</th>
+  </tr>
+          </thead>
+          <tbody>
+            {[...schedule]
+              .sort((a, b) => {
+                const dateA = new Date(a.date).getTime();
+                const dateB = new Date(b.date).getTime();
+                if (dateA !== dateB) return dateA - dateB;
+                return a.startTime.localeCompare(b.startTime);
+              })
+              .map((s) => (
                 <tr key={s.scheduleId}>
                   <td>{s.studentId}</td>
                   <td>{s.studentName}</td>
                   <td>{s.studentEmail}</td>
                   <td>{s.topicTitle}</td>
+                  <td><span className="badge">{s.role}</span></td>
                   <td>
-                    <span className="badge">{s.role}</span>
+                    {s.role === "Supervisor"
+                      ? s.reviewerName || "—"
+                      : s.supervisorName || "—"}
                   </td>
-                  <td>{s.date}</td>
-                  <td>
-                    {s.startTime} – {s.endTime}
-                  </td>
-                  <td>
-                    <span className="badge">{s.roomName}</span>
-                  </td>
+                  <td>{formatDateLong(s.date)}</td>
+                  <td>from {s.startTime} to {s.endTime}</td>
+                  <td><span className="badge">{s.roomName}</span></td>
                 </tr>
               ))}
-            </tbody>
+          </tbody>
+
+
           </table>
         </div>
       )}

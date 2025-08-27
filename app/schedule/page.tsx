@@ -28,5 +28,30 @@ export default async function SchedulePage() {
     },
   });
 
-  return <ScheduleClient schedules={schedules} conflicts={conflicts} />;
+  // ✅ Fetch all slots and all rooms
+  const slots = await prisma.timeSlot.findMany({
+    orderBy: [{ date: "asc" }, { startTime: "asc" }],
+  });
+  const rooms = await prisma.room.findMany();
+
+  // ✅ Generate all possible slot-room combos
+  const allSlots = slots.flatMap((slot) =>
+    rooms.map((room) => ({
+      id: `${slot.id}-${room.id}`, // synthetic id
+      slotId: slot.id,
+      roomId: room.id,
+      date: slot.date,
+      startTime: slot.startTime,
+      endTime: slot.endTime,
+      room: { id: room.id, name: room.name },
+    }))
+  );
+
+  return (
+    <ScheduleClient
+      schedules={schedules}
+      conflicts={conflicts}
+      allSlots={allSlots}
+    />
+  );
 }

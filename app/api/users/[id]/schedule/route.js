@@ -32,6 +32,10 @@ export async function GET(req) {
         endTime: s.slot.endTime,
         roomName: s.room.name,
         role: s.topic.supervisorId === id ? 'Supervisor' : 'Reviewer',
+
+        // ✅ include both names
+        supervisorName: s.topic.supervisor?.name || null,
+        reviewerName: s.topic.reviewer?.name || null,
       });
     }
   }

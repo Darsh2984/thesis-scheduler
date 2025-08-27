@@ -11,8 +11,8 @@ type Schedule = {
     supervisor?: { name: string | null } | null;
     reviewer?: { name: string | null } | null;
   };
-  room: { name: string };
-  slot: { date: string | Date; startTime: string; endTime: string };
+  room: { id: number; name: string };
+  slot: { id: number; date: string | Date; startTime: string; endTime: string };
 };
 
 type Conflict = {
@@ -26,34 +26,37 @@ type Conflict = {
   reason: string;
 };
 
-// ✅ Helper to add "st", "nd", "rd", "th"
-function formatDateWithOrdinal(dateStr: string | Date): string {
-  const d = new Date(dateStr);
-  const day = d.getDate();
-  const suffix =
-    day % 10 === 1 && day !== 11
-      ? "st"
-      : day % 10 === 2 && day !== 12
-      ? "nd"
-      : day % 10 === 3 && day !== 13
-      ? "rd"
-      : "th";
+type SlotRoom = {
+  id: string; // synthetic id = slotId-roomId
+  slotId: number;
+  roomId: number;
+  date: string | Date;
+  startTime: string;
+  endTime: string;
+  room: { id: number; name: string };
+};
 
+// ✅ Helper for long date format
+function formatDateLong(dateStr: string | Date): string {
+  const d = new Date(dateStr);
   return d.toLocaleDateString("en-US", {
     weekday: "long",
-    month: "long",
     year: "numeric",
-  }).replace(String(d.getFullYear()), `${day}${suffix} ${d.getFullYear()}`);
+    month: "long",
+    day: "numeric",
+  });
 }
 
 export default function ScheduleClient({
   schedules,
   conflicts,
+  allSlots,
 }: {
   schedules: Schedule[];
   conflicts: Conflict[];
+  allSlots: SlotRoom[];
 }) {
-  // Download as CSV
+  // === CSV Export (scheduled only) ===
   const handleExportCSV = () => {
     const headers = [
       "Student ID",
@@ -75,8 +78,8 @@ export default function ScheduleClient({
       s.topic.supervisor?.name || "—",
       s.topic.reviewer?.name || "—",
       s.room.name,
-      formatDateWithOrdinal(s.slot.date),
-      `${s.slot.startTime.slice(0, 5)} – ${s.slot.endTime.slice(0, 5)}`,
+      formatDateLong(s.slot.date),
+      `from ${s.slot.startTime.slice(0, 5)} to ${s.slot.endTime.slice(0, 5)}`,
     ]);
 
     const csvContent =
@@ -96,6 +99,14 @@ export default function ScheduleClient({
     link.click();
     document.body.removeChild(link);
   };
+
+  // === Unused slots (slot × room not in any schedule) ===
+  const usedKeys = new Set(
+    schedules.map((s) => `${s.slot.id}-${s.room.id}`)
+  );
+  const unusedSlots = allSlots.filter(
+    (sr) => !usedKeys.has(`${sr.slotId}-${sr.roomId}`)
+  );
 
   return (
     <div className="container">
@@ -136,9 +147,9 @@ export default function ScheduleClient({
                 <td>{s.topic.supervisor?.name || "—"}</td>
                 <td>{s.topic.reviewer?.name || "—"}</td>
                 <td>{s.room.name}</td>
-                <td>{formatDateWithOrdinal(s.slot.date)}</td>
+                <td>{formatDateLong(s.slot.date)}</td>
                 <td>
-                  {s.slot.startTime.slice(0, 5)} – {s.slot.endTime.slice(0, 5)}
+                  from {s.slot.startTime.slice(0, 5)} to {s.slot.endTime.slice(0, 5)}
                 </td>
               </tr>
             ))}
@@ -177,6 +188,37 @@ export default function ScheduleClient({
                     <td>{c.topic.studentEmail}</td>
                     <td>{c.topic.title}</td>
                     <td>{c.reason}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Unused Slots Section */}
+      <div style={{ marginTop: 40 }}>
+        <h2 className="pageTitle">Unused Slots</h2>
+        {unusedSlots.length === 0 ? (
+          <p className="text-green-600">🎉 No unused slots — all slots are assigned!</p>
+        ) : (
+          <div className="card" style={{ overflow: "auto", maxHeight: "50vh" }}>
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Time</th>
+                  <th>Room</th>
+                </tr>
+              </thead>
+              <tbody>
+                {unusedSlots.map((sr) => (
+                  <tr key={sr.id}>
+                    <td>{formatDateLong(sr.date)}</td>
+                    <td>
+                      from {sr.startTime.slice(0, 5)} to {sr.endTime.slice(0, 5)}
+                    </td>
+                    <td>{sr.room.name}</td>
                   </tr>
                 ))}
               </tbody>

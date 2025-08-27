@@ -31,13 +31,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </div>
         </header>
 
-        {/* Quick Access Button */}
-        <div className="container" style={{ marginTop: "12px", textAlign: "right" }}>
-          <Link href="/admin/users" className="btn btnDark">
-            👥 View All Users
-          </Link>
-        </div>
-
         {/* Page content */}
         <main>{children}</main>
 
