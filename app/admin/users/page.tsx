@@ -23,15 +23,16 @@ export default function UsersPage() {
       });
   }, []);
 
-  const handleDownloadPDF = async (userId: number) => {
-    const res = await fetch(`/api/users/${userId}/schedule/pdf`);
+  const handleDownloadCSV = async (userId) => {
+    const res = await fetch(`/api/users/${userId}/schedule/csv`);
     const blob = await res.blob();
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `schedule_user_${userId}.pdf`;
+    a.download = `schedule_user_${userId}.csv`;
     a.click();
   };
+
 
   const handleSendEmail = async (userId: number) => {
     const res = await fetch(`/api/users/${userId}/schedule/email`, {
@@ -82,9 +83,9 @@ export default function UsersPage() {
                     <button
                       className="btn"
                       style={{ borderColor: '#16a34a', color: '#16a34a' }}
-                      onClick={() => handleDownloadPDF(user.id)}
+                      onClick={() => handleDownloadCSV(user.id)}
                     >
-                      PDF
+                      CSV
                     </button>
                     <button
                       className="btn"
