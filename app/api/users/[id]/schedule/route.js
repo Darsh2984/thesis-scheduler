@@ -1,44 +1,64 @@
+import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
-export async function GET(req) {
-  const url = new URL(req.url);
-  const id = parseInt(url.pathname.split('/').slice(-2, -1)[0]); // Extract ID from URL
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
-  const schedules = await prisma.schedule.findMany({
-    include: {
-      topic: {
-        include: {
-          supervisor: true,
-          reviewer: true,
-        },
-      },
-      slot: true,
-      room: true,
-    },
-  });
-
-  const result = [];
-
-  for (const s of schedules) {
-    if (s.topic.supervisorId === id || s.topic.reviewerId === id) {
-      result.push({
-        scheduleId: s.id,
-        topicTitle: s.topic.title,
-        studentId: s.topic.studentId,
-        studentName: s.topic.studentName,
-        studentEmail: s.topic.studentEmail,
-        date: s.slot.date.toISOString().split('T')[0],
-        startTime: s.slot.startTime,
-        endTime: s.slot.endTime,
-        roomName: s.room.name,
-        role: s.topic.supervisorId === id ? 'Supervisor' : 'Reviewer',
-
-        // ✅ include both names
-        supervisorName: s.topic.supervisor?.name || null,
-        reviewerName: s.topic.reviewer?.name || null,
-      });
+// ✅ GET: user info + schedule
+export async function GET(_req, { params }) {
+  try {
+    const id = Number(params.id);
+    if (isNaN(id)) {
+      return NextResponse.json({ error: 'Invalid user id' }, { status: 400 });
     }
-  }
 
-  return Response.json(result);
+    // fetch user
+    const user = await prisma.user.findUnique({
+      where: { id },
+      select: { id: true, name: true, email: true, role: true },
+    });
+
+    if (!user) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+
+    // fetch schedule with topic + slot + room
+    const schedule = await prisma.schedule.findMany({
+      where: {
+        OR: [
+          { topic: { supervisorId: id } },
+          { topic: { reviewerId: id } },
+        ],
+      },
+      include: {
+        topic: { select: { id: true, title: true, studentId: true, studentName: true, studentEmail: true, supervisor: true, reviewer: true } },
+        slot: true,
+        room: true,
+      },
+    });
+
+    // transform rows
+    const rows = schedule.map(s => ({
+      scheduleId: s.id,
+      topicTitle: s.topic.title,
+      studentId: s.topic.studentId,
+      studentName: s.topic.studentName,
+      studentEmail: s.topic.studentEmail,
+      role: s.topic.supervisorId === id ? "Supervisor" : "Reviewer",
+      supervisorName: s.topic.supervisor?.name || null,
+      reviewerName: s.topic.reviewer?.name || null,
+      date: s.slot.date,
+      startTime: s.slot.startTime,
+      endTime: s.slot.endTime,
+      roomName: s.room.name,
+    }));
+
+    return NextResponse.json(
+      { user, schedule: rows },
+      { headers: { 'Cache-Control': 'no-store' } }
+    );
+  } catch (e) {
+    console.error('❌ Error fetching user schedule:', e);
+    return NextResponse.json({ error: 'Server error' }, { status: 500 });
+  }
 }

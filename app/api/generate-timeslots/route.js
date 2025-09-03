@@ -24,7 +24,7 @@ function getDatesInRange(from, to, excludeDates = []) {
   const end = new Date(to);
 
   for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-    const isFriday = d.getDay() === 5; // Friday = 5
+const isFriday = d.getUTCDay() === 5;
     const formatted = d.toISOString().split("T")[0];
 
     if (isFriday) continue;

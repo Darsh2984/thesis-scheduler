@@ -1,10 +1,11 @@
 import { read, utils } from 'xlsx';
 import { prisma } from '@/lib/prisma';
 
+export const runtime = 'nodejs';
+
 export async function POST(req) {
   const formData = await req.formData();
   const file = formData.get('file');
-
   if (!file) {
     return new Response(JSON.stringify({ error: 'No file uploaded' }), { status: 400 });
   }
@@ -19,28 +20,18 @@ export async function POST(req) {
       return new Response(JSON.stringify({ error: 'No rows found in Excel file' }), { status: 400 });
     }
 
-    // ✅ Require student columns too
     const REQUIRED_COLS = [
-      'Student ID',
-      'Student Name',
-      'Student Email',
-      'Title',
-      'Supervisor Name',
-      'Supervisor Email',
-      'Reviewer Name',
-      'Reviewer Email',
+      'Student ID','Student Name','Student Email','Title',
+      'Supervisor Name','Supervisor Email','Reviewer Name','Reviewer Email',
     ];
     const cols = Object.keys(data[0]);
     for (const col of REQUIRED_COLS) {
       if (!cols.includes(col)) {
-        return new Response(
-          JSON.stringify({ error: `Missing required column: ${col}` }),
-          { status: 400 }
-        );
+        return new Response(JSON.stringify({ error: `Missing required column: ${col}` }), { status: 400 });
       }
     }
 
-    // Clear old topics
+    // Clear old topics (keep users)
     await prisma.schedule.deleteMany();
     await prisma.bachelorTopic.deleteMany();
 
@@ -54,48 +45,31 @@ export async function POST(req) {
       const revName = row['Reviewer Name'];
       const revEmail = row['Reviewer Email'];
 
-      if (!studentId || !studentName || !studentEmail || !title || !supEmail || !revEmail) {
-        console.warn('⚠️ Skipping row due to missing fields:', row);
-        continue;
-      }
+      if (!studentId || !studentName || !studentEmail || !title || !supEmail || !revEmail) continue;
 
       const supervisor = await prisma.user.upsert({
         where: { email: supEmail },
         update: {},
-        create: {
-          name: supName || supEmail.split('@')[0],
-          email: supEmail,
-          role: 'FT_SUPERVISOR',
-        },
+        create: { name: supName || supEmail.split('@')[0], email: supEmail, role: 'FT_SUPERVISOR' },
       });
 
       const reviewer = await prisma.user.upsert({
         where: { email: revEmail },
         update: {},
-        create: {
-          name: revName || revEmail.split('@')[0],
-          email: revEmail,
-          role: 'REVIEWER',
-        },
+        create: { name: revName || revEmail.split('@')[0], email: revEmail, role: 'REVIEWER' },
       });
 
       await prisma.bachelorTopic.create({
         data: {
-          studentId,
-          studentName,
-          studentEmail,
-          title,
-          supervisorId: supervisor.id,
-          reviewerId: reviewer.id,
+          studentId, studentName, studentEmail, title,
+          supervisorId: supervisor.id, reviewerId: reviewer.id,
         },
       });
-
-      console.log(`✅ Inserted topic for student ${studentName} (${studentId})`);
     }
 
     return new Response(JSON.stringify({ message: 'Topics uploaded successfully' }), { status: 200 });
   } catch (error) {
     console.error('❌ Upload error:', error);
-    return new Response(JSON.stringify({ error: 'Failed to parse Excel file' }), { status: 500 });
+    return new Response(JSON.stringify({ error: error?.message || 'Failed to parse Excel file' }), { status: 500 });
   }
 }

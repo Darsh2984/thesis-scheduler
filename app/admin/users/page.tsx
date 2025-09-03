@@ -1,108 +1,131 @@
 'use client';
 
+import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
+
+type ScheduleRow = {
+  scheduleId: number;
+  topicTitle: string;
+  studentId: string;
+  studentName: string;
+  studentEmail: string;
+  role: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  roomName: string;
+  supervisorName?: string;
+  reviewerName?: string;
+};
 
 type User = {
   id: number;
   name: string;
   email: string;
-  role: string;
 };
 
-export default function UsersPage() {
-  const [users, setUsers] = useState<User[]>([]);
-  const [search, setSearch] = useState(''); // ✅ search term
+export default function UserSchedulePage() {
+  const params = useParams();
+  const id = params?.id as string;
+
+  const [schedule, setSchedule] = useState<ScheduleRow[]>([]);
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('/api/users')
-      .then((res) => res.json())
-      .then((data) => {
-        // ✅ sort by ID ascending before setting state
-        const sorted = [...data].sort((a, b) => a.id - b.id);
-        setUsers(sorted);
-      });
-  }, []);
+    async function fetchData() {
+      try {
+        const res = await fetch(`/api/users/${id}/schedule`);
+        const data = await res.json();
 
-  const handleDownloadCSV = async (userId: number, userName: string) => {
-    const res = await fetch(`/api/users/${userId}/schedule/csv`);
-    const blob = await res.blob();
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    // ✅ sanitize the username (replace spaces with underscores)
-    const safeName = userName.replace(/\s+/g, "_");
-    a.download = `${safeName}_Schedule.csv`;
-    a.click();
-  };
+        if (!res.ok) throw new Error(data.error || 'Failed to load schedule');
 
-  // ✅ Filter users by search
-  const filteredUsers = users.filter((user) =>
-    user.name.toLowerCase().includes(search.toLowerCase())
-  );
+        setUser(data.user);
+        setSchedule(data.schedule || []);
+      } catch (err) {
+        console.error('Error loading schedule:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    if (id) fetchData();
+  }, [id]);
+
+  if (loading) return <p className="p-6">⏳ Loading schedule...</p>;
+  if (!user) return <p className="p-6 text-red-500">❌ User not found.</p>;
+
+  function formatDateLong(dateStr: string | Date): string {
+    const d = new Date(dateStr);
+    return d.toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    });
+  }
 
   return (
     <div className="container">
-      <h1 className="pageTitle">All Users</h1>
+      <h1 className="pageTitle">
+        Schedule for <span style={{ color: '#2563eb' }}>{user.name}</span>
+      </h1>
+      <p className="text-gray-600 mb-6">{user.email}</p>
 
-      {/* 🔍 Search Box */}
-      <div className="mb-4">
-        <input
-          type="text"
-          placeholder="Search by name..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="border rounded px-3 py-2 w-full"
-        />
-      </div>
-
-      <div className="card" style={{ overflow: 'auto', maxHeight: '70vh' }}>
-        <table className="table">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Name & Email</th>
-              <th>Role</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredUsers.map((user) => (
-              <tr key={user.id}>
-                <td>{user.id}</td>
-                <td>
-                  <div className="font-medium">{user.name}</div>
-                  <div className="text-sm text-gray-600">{user.email}</div>
-                </td>
-                <td>
-                  <span className="badge">{user.role}</span>
-                </td>
-                <td>
-                  <div className="flex flex-wrap gap-2">
-                    <Link
-                      href={`/admin/users/${user.id}/schedule`}
-                      className="btn"
-                      style={{ borderColor: '#2563eb', color: '#2563eb' }}
-                    >
-                      View
-                    </Link>
-                    <button
-                      className="btn"
-                      style={{ borderColor: "#16a34a", color: "#16a34a" }}
-                      onClick={() => handleDownloadCSV(user.id, user.name)}
-                    >
-                      CSV
-                    </button>
-                  </div>
-                </td>
+      {schedule.length === 0 ? (
+        <div className="card p-6 text-gray-600">
+          No schedule found for this user.
+        </div>
+      ) : (
+        <div className="card" style={{ overflow: 'auto', maxHeight: '70vh' }}>
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Student ID</th>
+                <th>Student Name</th>
+                <th>Student Email</th>
+                <th>Topic</th>
+                <th>Role</th>
+                <th>Counterpart</th>
+                <th>Date</th>
+                <th>Time</th>
+                <th>Room</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {filteredUsers.length === 0 && (
-        <p style={{ marginTop: 16, color: '#6b7280' }}>No users found.</p>
+            </thead>
+            <tbody>
+              {[...schedule]
+                .sort((a, b) => {
+                  const dateA = new Date(a.date).getTime();
+                  const dateB = new Date(b.date).getTime();
+                  if (dateA !== dateB) return dateA - dateB;
+                  return a.startTime.localeCompare(b.startTime);
+                })
+                .map((s) => (
+                  <tr key={s.scheduleId}>
+                    <td>{s.studentId}</td>
+                    <td>{s.studentName}</td>
+                    <td>{s.studentEmail}</td>
+                    <td>{s.topicTitle}</td>
+                    <td>
+                      <span className="badge">{s.role}</span>
+                    </td>
+                    <td>
+                      {s.role === 'Supervisor'
+                        ? s.reviewerName || '—'
+                        : s.supervisorName || '—'}
+                    </td>
+                    <td>{formatDateLong(s.date)}</td>
+                    <td>
+                      from {s.startTime} to {s.endTime}
+                    </td>
+                    <td>
+                      <span className="badge">{s.roomName}</span>
+                    </td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );

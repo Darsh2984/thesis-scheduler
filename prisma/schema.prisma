@@ -64,7 +64,7 @@ model Schedule {
 
   topic     BachelorTopic @relation(fields: [topicId], references: [id])
   room      Room          @relation(fields: [roomId], references: [id])
-  slot      TimeSlot      @relation(fields: [slotId], references: [id])
+  slot      TimeSlot      @relation(fields: [slotId], references: [id], onDelete: Cascade)
 }
 
 model Conflict {

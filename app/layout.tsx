@@ -20,13 +20,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <span>Thesis Scheduler</span>
             </Link>
             <nav className="links">
-              <Link href="/admin/upload-users">Upload Users</Link>
-              <Link href="/admin/upload-topics">Upload Topics</Link>
-              <Link href="/admin/upload-rooms">Upload Rooms</Link>
-              <Link href="/admin/upload-timeslots">Upload Timeslots</Link>
-              <Link href="/admin/user-dates">Constraints</Link>              
-              <Link href="/admin/users">All Users</Link>
-              <GenerateScheduleButton />
+              <Link href="/admin/upload-users">Upload Data</Link>
+              <Link href="/schedule">Schedule</Link>              
+              <Link href="/admin/users">Users Schedule</Link>
+              {/* <GenerateScheduleButton /> */}
             </nav>
           </div>
         </header>

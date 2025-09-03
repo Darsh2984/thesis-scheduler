@@ -1,58 +1,102 @@
 import { prisma } from "@/lib/prisma";
+import { NextResponse } from "next/server";
 
-export async function GET(req, context) {
-  const { params } = await context; // ✅ await here
-  const userId = parseInt(params.id, 10);
+export async function GET(req, { params }) {
+  try {
+    const userId = parseInt(params.id, 10);
+    if (isNaN(userId)) {
+      return NextResponse.json({ error: "Invalid user id" }, { status: 400 });
+    }
 
-  const schedules = await prisma.schedule.findMany({
-    include: {
-      topic: { include: { supervisor: true, reviewer: true } },
-      slot: true,
-      room: true,
-    },
-    where: {
-      OR: [
-        { topic: { supervisorId: userId } },
-        { topic: { reviewerId: userId } },
-      ],
-    },
-  });
+    // Fetch schedules for the user
+    const schedules = await prisma.schedule.findMany({
+      where: {
+        OR: [
+          { topic: { supervisorId: userId } },
+          { topic: { reviewerId: userId } },
+        ],
+      },
+      include: {
+        topic: {
+          include: {
+            supervisor: true,
+            reviewer: true,
+          },
+        },
+        slot: true,
+        room: true,
+      },
+      orderBy: {
+        slot: { date: "asc" },
+      },
+    });
 
-  const headers = [
-    "Student ID",
-    "Student Name",
-    "Student Email",
-    "Topic",
-    "Supervisor",
-    "Reviewer",
-    "Room",
-    "Date",
-    "Time",
-  ];
+    // Format CSV rows
+    const rows = schedules.map((s) => {
+      let role = "";
+      if (s.topic.supervisorId === userId) role = "Supervisor";
+      if (s.topic.reviewerId === userId) role = "Reviewer";
 
-  const rows = schedules.map((s) => [
-    s.topic.studentId,
-    s.topic.studentName,
-    s.topic.studentEmail,
-    s.topic.title,
-    s.topic.supervisor?.name || "—",
-    s.topic.reviewer?.name || "—",
-    s.room.name,
-    s.slot.date.toISOString().split("T")[0],
-    `from ${s.slot.startTime} to ${s.slot.endTime}`,
-  ]);
+      return {
+        scheduleId: s.id,
+        topicTitle: s.topic.title,
+        studentId: s.topic.studentId,
+        studentName: s.topic.studentName,
+        studentEmail: s.topic.studentEmail,
+        role,
+        supervisorName: s.topic.supervisor ? s.topic.supervisor.name : "",
+        reviewerName: s.topic.reviewer ? s.topic.reviewer.name : "",
+        date: new Date(s.slot.date).toLocaleDateString("en-US"),
+        startTime: s.slot.startTime,
+        endTime: s.slot.endTime,
+        roomName: s.room.name,
+      };
+    });
 
-  const csvContent =
-    [headers, ...rows]
-      .map((row) =>
-        row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")
-      )
-      .join("\n");
+    // Build CSV string
+    const header = [
+      "Schedule ID",
+      "Topic Title",
+      "Student ID",
+      "Student Name",
+      "Student Email",
+      "Role",
+      "Supervisor",
+      "Reviewer",
+      "Date",
+      "Start Time",
+      "End Time",
+      "Room",
+    ];
 
-  return new Response(csvContent, {
-    headers: {
-      "Content-Type": "text/csv",
-      "Content-Disposition": `attachment; filename="user_${userId}_schedule.csv"`,
-    },
-  });
+    const csvContent = [
+      header.join(","),
+      ...rows.map((r) =>
+        [
+          r.scheduleId,
+          `"${r.topicTitle}"`, // quote titles
+          r.studentId,
+          `"${r.studentName}"`,
+          r.studentEmail,
+          r.role,
+          r.supervisorName,
+          r.reviewerName,
+          r.date,
+          r.startTime,
+          r.endTime,
+          r.roomName,
+        ].join(",")
+      ),
+    ].join("\n");
+
+    return new Response(csvContent, {
+      headers: {
+        "Content-Type": "text/csv",
+        "Content-Disposition": `attachment; filename="user_${userId}_schedule.csv"`,
+      },
+    });
+  } catch (err) {
+    console.error("❌ Error generating CSV:", err);
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
+  }
 }
