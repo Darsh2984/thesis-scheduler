@@ -105,7 +105,9 @@ opacity: .35;
   cursor: pointer;
   transition: all 0.2s;
 }
-.btn:hover { background: #dc2626; }
+.btn:hover { 
+  background: #dc2626;
+  color: white; }
 .btnLight {
   border-color: #f59e0b;
 }
