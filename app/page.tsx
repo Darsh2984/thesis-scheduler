@@ -36,19 +36,19 @@ export default function HomePage() {
               <p className="text-sm text-gray-600">Supervisors, reviewers, and examiners</p>
             </li>
             <li>
-              <Link href="/admin/upload-topics" className="btn btnDark">Upload Topics</Link>  
+              <Link href="/admin/upload-users" className="btn btnDark">Upload Topics</Link>  
               <p className="text-sm text-gray-600">Bachelor topics with supervisor & reviewer</p>
             </li>
             <li>
-              <Link href="/admin/upload-rooms" className="btn btnDark">Upload Rooms</Link>  
+              <Link href="/admin/upload-users" className="btn btnDark">Upload Rooms</Link>  
               <p className="text-sm text-gray-600">Available rooms with capacity</p>
             </li>
             <li>
-              <Link href="/admin/upload-timeslots" className="btn btnDark">Upload Timeslots</Link>  
+              <Link href="/admin/upload-users" className="btn btnDark">Upload Timeslots</Link>  
               <p className="text-sm text-gray-600">Define date and time ranges</p>
             </li>
             <li>
-              <Link href="/admin/user-dates" className="btn btnDark">Upload Constraints</Link>  
+              <Link href="/admin/upload-users" className="btn btnDark">Upload Constraints</Link>  
               <p className="text-sm text-gray-600">Add User Preferred and Unavailable Dates</p>
             </li>
             <li>
