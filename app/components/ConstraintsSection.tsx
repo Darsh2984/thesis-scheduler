@@ -77,6 +77,7 @@ export default function ConstraintsSection() {
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={sx.badge(sectionState)}>{sectionState}</span>
+            <button onClick={load} style={sx.heroBtn}>↻ Refresh</button>
             <button onClick={() => setOpen(o => !o)} style={sx.heroBtn}>
               {open ? 'Hide' : 'Manage'}
             </button>

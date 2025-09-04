@@ -146,7 +146,7 @@ export default function UsersPage() {
         <table className="table">
           <thead>
             <tr>
-              <th onClick={() => handleSort('id')} style={{ cursor: 'pointer' }}>
+              <th  onClick={() => handleSort('id')} style={{ cursor: 'pointer', width: "8px" }}>
                 ID {sortKey === 'id' && (sortDir === 'asc' ? '▲' : '▼')}
               </th>
               <th onClick={() => handleSort('name')} style={{ cursor: 'pointer' }}>
