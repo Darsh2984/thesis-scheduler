@@ -1,132 +1,193 @@
 'use client';
 
-import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
-
-type ScheduleRow = {
-  scheduleId: number;
-  topicTitle: string;
-  studentId: string;
-  studentName: string;
-  studentEmail: string;
-  role: string;
-  date: string;
-  startTime: string;
-  endTime: string;
-  roomName: string;
-  supervisorName?: string;
-  reviewerName?: string;
-};
+import Link from 'next/link';
 
 type User = {
   id: number;
   name: string;
   email: string;
+  role?: string;
 };
 
-export default function UserSchedulePage() {
-  const params = useParams();
-  const id = params?.id as string;
-
-  const [schedule, setSchedule] = useState<ScheduleRow[]>([]);
-  const [user, setUser] = useState<User | null>(null);
+export default function UsersPage() {
+  const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
+  const [query, setQuery] = useState('');
+  const [sortKey, setSortKey] = useState<keyof User | 'id'>('id');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
   useEffect(() => {
-    async function fetchData() {
+    async function fetchUsers() {
       try {
-        const res = await fetch(`/api/users/${id}/schedule`);
+        const res = await fetch('/api/users', { cache: 'no-store' });
         const data = await res.json();
-
-        if (!res.ok) throw new Error(data.error || 'Failed to load schedule');
-
-        setUser(data.user);
-        setSchedule(data.schedule || []);
+        setUsers(data.rows || []);
       } catch (err) {
-        console.error('Error loading schedule:', err);
+        console.error('Error loading users:', err);
       } finally {
         setLoading(false);
       }
     }
+    fetchUsers();
+  }, []);
 
-    if (id) fetchData();
-  }, [id]);
+  if (loading) return <p className="p-6">⏳ Loading users...</p>;
+  if (users.length === 0) return <p className="p-6 text-gray-500">No users found.</p>;
 
-  if (loading) return <p className="p-6">⏳ Loading schedule...</p>;
-  if (!user) return <p className="p-6 text-red-500">❌ User not found.</p>;
+  // 🔍 Search filter
+  const filtered = users.filter(
+    (u) =>
+      String(u.id).toLowerCase().includes(query.toLowerCase()) ||
+      u.name.toLowerCase().includes(query.toLowerCase()) ||
+      u.email.toLowerCase().includes(query.toLowerCase()) ||
+      (u.role || '').toLowerCase().includes(query.toLowerCase())
+  );
 
-  function formatDateLong(dateStr: string | Date): string {
-    const d = new Date(dateStr);
-    return d.toLocaleDateString('en-US', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    });
+  // 🔀 Sorting
+  const sorted = [...filtered].sort((a, b) => {
+    const valA = a[sortKey] ?? '';
+    const valB = b[sortKey] ?? '';
+    if (valA < valB) return sortDir === 'asc' ? -1 : 1;
+    if (valA > valB) return sortDir === 'asc' ? 1 : -1;
+    return 0;
+  });
+
+  // Toggle sort direction on header click
+  function handleSort(key: keyof User | 'id') {
+    if (sortKey === key) {
+      setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortKey(key);
+      setSortDir('asc');
+    }
+  }
+
+  // 🔽 helper to download schedule as CSV
+  async function downloadSchedule(userId: number, userName: string) {
+    try {
+      const res = await fetch(`/api/users/${userId}/schedule`, { cache: 'no-store' });
+      const data = await res.json();
+      if (!res.ok || !data.schedule) {
+        alert('Failed to fetch schedule');
+        return;
+      }
+
+      const rows = data.schedule;
+      const header = [
+        'Student ID',
+        'Student Name',
+        'Student Email',
+        'Topic',
+        'Role',
+        'Supervisor',
+        'Reviewer',
+        'Date',
+        'Start Time',
+        'End Time',
+        'Room',
+      ];
+
+      const csv = [
+        header.join(','),
+        ...rows.map((r: any) =>
+          [
+            r.studentId,
+            r.studentName,
+            r.studentEmail,
+            r.topicTitle,
+            r.role,
+            r.supervisorName || '',
+            r.reviewerName || '',
+            r.date,
+            r.startTime,
+            r.endTime,
+            r.roomName,
+          ]
+            .map((val) => `"${String(val ?? '').replace(/"/g, '""')}"`)
+            .join(',')
+        ),
+      ].join('\n');
+
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${userName.replace(/\s+/g, '_')}_schedule.csv`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Error downloading CSV:', err);
+    }
   }
 
   return (
     <div className="container">
-      <h1 className="pageTitle">
-        Schedule for <span style={{ color: '#2563eb' }}>{user.name}</span>
-      </h1>
-      <p className="text-gray-600 mb-6">{user.email}</p>
+      <h1 className="pageTitle">All Users</h1>
 
-      {schedule.length === 0 ? (
-        <div className="card p-6 text-gray-600">
-          No schedule found for this user.
-        </div>
-      ) : (
-        <div className="card" style={{ overflow: 'auto', maxHeight: '70vh' }}>
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Student ID</th>
-                <th>Student Name</th>
-                <th>Student Email</th>
-                <th>Topic</th>
-                <th>Role</th>
-                <th>Counterpart</th>
-                <th>Date</th>
-                <th>Time</th>
-                <th>Room</th>
+      {/* 🔍 Search bar */}
+      <div style={{ marginBottom: '12px' }}>
+        <input
+          type="text"
+          placeholder="Search by ID, name, email, or role…"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          style={{
+            width: '100%',
+            maxWidth: '400px',
+            padding: '8px 12px',
+            borderRadius: 8,
+            border: '1px solid #d1d5db',
+          }}
+        />
+      </div>
+
+      <div className="card" style={{ overflow: 'auto', maxHeight: '70vh' }}>
+        <table className="table">
+          <thead>
+            <tr>
+              <th onClick={() => handleSort('id')} style={{ cursor: 'pointer' }}>
+                ID {sortKey === 'id' && (sortDir === 'asc' ? '▲' : '▼')}
+              </th>
+              <th onClick={() => handleSort('name')} style={{ cursor: 'pointer' }}>
+                Name {sortKey === 'name' && (sortDir === 'asc' ? '▲' : '▼')}
+              </th>
+              <th onClick={() => handleSort('email')} style={{ cursor: 'pointer' }}>
+                Email {sortKey === 'email' && (sortDir === 'asc' ? '▲' : '▼')}
+              </th>
+              <th onClick={() => handleSort('role')} style={{ cursor: 'pointer' }}>
+                Role {sortKey === 'role' && (sortDir === 'asc' ? '▲' : '▼')}
+              </th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sorted.map((u) => (
+              <tr key={u.id}>
+                <td>{u.id}</td>
+                <td>{u.name}</td>
+                <td>{u.email}</td>
+                <td>{u.role}</td>
+                <td>
+                  <Link
+                    href={`/admin/users/${u.id}/schedule`}
+                    className="btn btn-primary"
+                    style={{ marginRight: '8px' }}
+                  >
+                    View Schedule
+                  </Link>
+                  <button
+                    className="btn btn-secondary"
+                    onClick={() => downloadSchedule(u.id, u.name)}
+                  >
+                    Download CSV
+                  </button>
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {[...schedule]
-                .sort((a, b) => {
-                  const dateA = new Date(a.date).getTime();
-                  const dateB = new Date(b.date).getTime();
-                  if (dateA !== dateB) return dateA - dateB;
-                  return a.startTime.localeCompare(b.startTime);
-                })
-                .map((s) => (
-                  <tr key={s.scheduleId}>
-                    <td>{s.studentId}</td>
-                    <td>{s.studentName}</td>
-                    <td>{s.studentEmail}</td>
-                    <td>{s.topicTitle}</td>
-                    <td>
-                      <span className="badge">{s.role}</span>
-                    </td>
-                    <td>
-                      {s.role === 'Supervisor'
-                        ? s.reviewerName || '—'
-                        : s.supervisorName || '—'}
-                    </td>
-                    <td>{formatDateLong(s.date)}</td>
-                    <td>
-                      from {s.startTime} to {s.endTime}
-                    </td>
-                    <td>
-                      <span className="badge">{s.roomName}</span>
-                    </td>
-                  </tr>
-                ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
