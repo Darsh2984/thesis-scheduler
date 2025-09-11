@@ -16,7 +16,12 @@ export async function GET() {
       studentEmail: t.studentEmail,
       title: t.title,
       supervisor: t.supervisor?.name || '',
+      supervisorEmail: t.supervisor?.email || '',
       examiner: t.reviewer?.name || '',
+      examinerEmail: t.reviewer?.email || '',
+      faculty: t.faculty || '',   // ✅ new
+      major: t.major || '',       // ✅ new
+      gpa: t.gpa ?? null,         // ✅ new
     })),
   });
 }

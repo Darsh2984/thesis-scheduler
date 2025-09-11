@@ -12,7 +12,11 @@ type TopicRow = {
   supervisorEmail: string;
   examiner: string;
   examinerEmail: string;
+  faculty?: string;  // ✅ new
+  major?: string;    // ✅ new
+  gpa?: number | null; // ✅ new
 };
+
 type SortKey = keyof TopicRow;
 type SortDir = 'asc' | 'desc';
 
@@ -64,11 +68,13 @@ export default function TopicsSection() {
   });
 
   // manual add
-  const [newRow, setNewRow] = useState({
-    studentId: '', studentName: '', studentEmail: '', title: '',
-    supervisorEmail: '', reviewerEmail: '',
-    supervisorName: '', reviewerName: '',
-  });
+const [newRow, setNewRow] = useState({
+  studentId: '', studentName: '', studentEmail: '', title: '',
+  supervisorEmail: '', reviewerEmail: '',
+  supervisorName: '', reviewerName: '',
+  faculty: '', major: '', gpa: '',   // ✅ new
+});
+
   const [newErr, setNewErr] = useState({
     studentEmail: '',
     supervisorEmail: '',
@@ -159,20 +165,38 @@ export default function TopicsSection() {
       const res = await fetch('/api/topics', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          studentId, studentName, studentEmail: studentEmail.trim(), title: title.trim(),
-          supervisorEmail: supervisorEmail.trim(), reviewerEmail: reviewerEmail.trim(),
-          supervisorName: supervisorName?.trim() || undefined, reviewerName: reviewerName?.trim() || undefined,
+          studentId,
+          studentName,
+          studentEmail: studentEmail.trim(),
+          title: title.trim(),
+          supervisorEmail: supervisorEmail.trim(),
+          reviewerEmail: reviewerEmail.trim(),
+          supervisorName: supervisorName?.trim() || undefined,
+          reviewerName: reviewerName?.trim() || undefined,
+          faculty: newRow.faculty?.trim() || undefined,   // ✅
+          major: newRow.major?.trim() || undefined,       // ✅
+          gpa: newRow.gpa ? parseFloat(newRow.gpa) : undefined, // ✅
         }),
+ 
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || 'Create failed');
 
       await load();
       setNewRow({
-        studentId: '', studentName: '', studentEmail: '', title: '',
-        supervisorEmail: '', reviewerEmail: '',
-        supervisorName: '', reviewerName: '',
-      });
+  studentId: '',
+  studentName: '',
+  studentEmail: '',
+  title: '',
+  supervisorEmail: '',
+  reviewerEmail: '',
+  supervisorName: '',
+  reviewerName: '',
+  faculty: '',   // ✅ reset
+  major: '',     // ✅ reset
+  gpa: '',       // ✅ reset
+});
+
       setNewErr({ studentEmail: '', supervisorEmail: '', reviewerEmail: '' });
     } catch (err: any) { setError(err?.message || String(err)); }
   }
@@ -212,6 +236,9 @@ export default function TopicsSection() {
         studentName: edit.studentName,
         studentEmail: edit.studentEmail?.trim(),
         title: edit.title,
+        faculty: edit.faculty?.trim() || undefined,  // ✅
+        major: edit.major?.trim() || undefined,      // ✅
+        gpa: edit.gpa ? parseFloat(edit.gpa as any) : undefined, // ✅
       };
       if (edit.supervisorEmail) {
         payload.supervisorEmail = edit.supervisorEmail.trim();
@@ -431,6 +458,22 @@ export default function TopicsSection() {
                 />
                 {newErr.studentEmail && <div style={tx.inputError}>{newErr.studentEmail}</div>}
               </div>
+              <div style={{ height: 8 }} />
+              <div style={tx.grid4}>
+                <input placeholder="Faculty (optional)" 
+                      value={newRow.faculty} 
+                      onChange={e=>setNewRow({...newRow, faculty: e.target.value})} 
+                      style={tx.input}/>
+                <input placeholder="Major (optional)" 
+                      value={newRow.major} 
+                      onChange={e=>setNewRow({...newRow, major: e.target.value})} 
+                      style={tx.input}/>
+                <input placeholder="GPA (optional)" 
+                      type="number" step="0.01"
+                      value={newRow.gpa}
+                      onChange={e=>setNewRow({...newRow, gpa: e.target.value})}
+                      style={tx.input}/>
+              </div>
               <input placeholder="Title" value={newRow.title} onChange={e=>setNewRow({...newRow, title: e.target.value})} style={tx.input}/>
             </div>
             <div style={{ height: 8 }} />
@@ -539,6 +582,9 @@ export default function TopicsSection() {
                       <th style={tx.th}><Hdr label="Student ID" active={sortKey==='studentId'} dir={sortDir} onClick={()=>toggleSort('studentId')} /></th>
                       <th style={tx.th}><Hdr label="Student Name" active={sortKey==='studentName'} dir={sortDir} onClick={()=>toggleSort('studentName')} /></th>
                       <th style={tx.th}><Hdr label="Student Email" active={sortKey==='studentEmail'} dir={sortDir} onClick={()=>toggleSort('studentEmail')} /></th>
+                      <th style={tx.th}><Hdr label="Faculty" active={sortKey==='faculty'} dir={sortDir} onClick={()=>toggleSort('faculty' as SortKey)} /></th>
+                      <th style={tx.th}><Hdr label="Major" active={sortKey==='major'} dir={sortDir} onClick={()=>toggleSort('major' as SortKey)} /></th>
+                      <th style={tx.th}><Hdr label="GPA" active={sortKey==='gpa'} dir={sortDir} onClick={()=>toggleSort('gpa' as SortKey)} /></th>
                       <th style={tx.th}><Hdr label="Title" active={sortKey==='title'} dir={sortDir} onClick={()=>toggleSort('title')} /></th>
                       <th style={tx.th}><Hdr label="Supervisor" active={sortKey==='supervisor'} dir={sortDir} onClick={()=>toggleSort('supervisor')} /></th>
                       <th style={tx.th}><Hdr label="Examiner" active={sortKey==='examiner'} dir={sortDir} onClick={()=>toggleSort('examiner')} /></th>
@@ -576,6 +622,25 @@ export default function TopicsSection() {
                               </>
                             ) : r.studentEmail}
                           </td>
+                          <td style={tx.td}>
+                            {editing ? <input value={edit.faculty ?? ''} 
+                                              onChange={e=>setEdit({...edit, faculty: e.target.value})} 
+                                              style={tx.input}/> 
+                                    : r.faculty || ''}
+                          </td>
+                          <td style={tx.td}>
+                            {editing ? <input value={edit.major ?? ''} 
+                                              onChange={e=>setEdit({...edit, major: e.target.value})} 
+                                              style={tx.input}/> 
+                                    : r.major || ''}
+                          </td>
+                          <td style={tx.td}>
+                            {editing ? <input type="number" step="0.01" value={edit.gpa ?? ''} 
+                                              onChange={e=>setEdit({...edit, gpa: e.target.value})} 
+                                              style={tx.input}/> 
+                                    : (r.gpa ?? '')}
+                          </td>
+
                           <td style={tx.td}>
                             {editing ? <input value={edit.title ?? ''} onChange={(e)=>setEdit({...edit, title: e.target.value})} style={tx.input}/>
                                      : r.title}

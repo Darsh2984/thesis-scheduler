@@ -1,9 +1,9 @@
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
 
-
 export const runtime = 'nodejs';
 
+// ================== PATCH ==================
 export async function PATCH(req, { params }) {
   try {
     const id = Number(params.id);
@@ -12,6 +12,7 @@ export async function PATCH(req, { params }) {
       studentId, studentName, studentEmail, title,
       supervisorEmail, reviewerEmail,
       supervisorName, reviewerName,
+      faculty, major, gpa,   // ✅ accept new fields
     } = body || {};
 
     let supervisorId, reviewerId;
@@ -20,7 +21,11 @@ export async function PATCH(req, { params }) {
       const sup = await prisma.user.upsert({
         where: { email: supervisorEmail },
         update: supervisorName ? { name: supervisorName } : {},
-        create: { name: supervisorName || supervisorEmail.split('@')[0], email: supervisorEmail, role: 'FT_SUPERVISOR' },
+        create: {
+          name: supervisorName || supervisorEmail.split('@')[0],
+          email: supervisorEmail,
+          role: 'FT_SUPERVISOR',
+        },
       });
       supervisorId = sup.id;
     }
@@ -29,7 +34,11 @@ export async function PATCH(req, { params }) {
       const rev = await prisma.user.upsert({
         where: { email: reviewerEmail },
         update: reviewerName ? { name: reviewerName } : {},
-        create: { name: reviewerName || reviewerEmail.split('@')[0], email: reviewerEmail, role: 'REVIEWER' },
+        create: {
+          name: reviewerName || reviewerEmail.split('@')[0],
+          email: reviewerEmail,
+          role: 'REVIEWER',
+        },
       });
       reviewerId = rev.id;
     }
@@ -43,30 +52,49 @@ export async function PATCH(req, { params }) {
         ...(title !== undefined ? { title } : {}),
         ...(supervisorId ? { supervisorId } : {}),
         ...(reviewerId ? { reviewerId } : {}),
+        ...(faculty !== undefined ? { faculty: faculty?.trim() || null } : {}), // ✅
+        ...(major !== undefined ? { major: major?.trim() || null } : {}),       // ✅
+        ...(gpa !== undefined
+          ? {
+              gpa:
+                gpa !== null && gpa !== ''
+                  ? parseFloat(gpa)
+                  : null,
+            }
+          : {}),                                                                // ✅
       },
       include: { supervisor: true, reviewer: true },
     });
 
-    return new Response(JSON.stringify({
-      topic: {
-        id: updated.id,
-        studentId: updated.studentId,
-        studentName: updated.studentName,
-        studentEmail: updated.studentEmail,
-        title: updated.title,
-        supervisor: updated.supervisor?.name || '',
-        supervisorEmail: updated.supervisor?.email || '',
-        examiner: updated.reviewer?.name || '',
-        examinerEmail: updated.reviewer?.email || '',
-      }
-    }), { status: 200 });
+    return new Response(
+      JSON.stringify({
+        topic: {
+          id: updated.id,
+          studentId: updated.studentId,
+          studentName: updated.studentName,
+          studentEmail: updated.studentEmail,
+          title: updated.title,
+          supervisor: updated.supervisor?.name || '',
+          supervisorEmail: updated.supervisor?.email || '',
+          examiner: updated.reviewer?.name || '',
+          examinerEmail: updated.reviewer?.email || '',
+          faculty: updated.faculty || '',  // ✅ return
+          major: updated.major || '',      // ✅ return
+          gpa: updated.gpa ?? null,        // ✅ return
+        },
+      }),
+      { status: 200 }
+    );
   } catch (err) {
-    console.error(err);
-    return new Response(JSON.stringify({ error: err?.message || 'Failed to update topic' }), { status: 500 });
+    console.error('PATCH /api/topics/[id] failed:', err);
+    return new Response(
+      JSON.stringify({ error: err?.message || 'Failed to update topic' }),
+      { status: 500 }
+    );
   }
 }
 
-
+// ================== DELETE ==================
 export async function DELETE(_req, { params }) {
   try {
     const id = Number(params?.id);
@@ -76,10 +104,8 @@ export async function DELETE(_req, { params }) {
 
     await prisma.bachelorTopic.delete({ where: { id } });
 
-    // Always return JSON so the client doesn't choke on empty bodies
     return NextResponse.json({ ok: true });
   } catch (err) {
-    // Record not found — treat as success so UI stays consistent
     if (err?.code === 'P2025') {
       return NextResponse.json({ ok: true, note: 'already deleted' });
     }

@@ -5,16 +5,19 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 // ✅ GET: user info + schedule
-export async function GET(_req, { params }) {
+export async function GET(_req, context) {
   try {
-    const id = Number(params.id);
-    if (isNaN(id)) {
+    // 👇 await params to avoid Next.js error
+    const { id } = await context.params;
+    const userId = Number(id);
+
+    if (isNaN(userId)) {
       return NextResponse.json({ error: 'Invalid user id' }, { status: 400 });
     }
 
     // fetch user
     const user = await prisma.user.findUnique({
-      where: { id },
+      where: { id: userId },
       select: { id: true, name: true, email: true, role: true },
     });
 
@@ -26,25 +29,37 @@ export async function GET(_req, { params }) {
     const schedule = await prisma.schedule.findMany({
       where: {
         OR: [
-          { topic: { supervisorId: id } },
-          { topic: { reviewerId: id } },
+          { topic: { supervisorId: userId } },
+          { topic: { reviewerId: userId } },
         ],
       },
       include: {
-        topic: { select: { id: true, title: true, studentId: true, studentName: true, studentEmail: true, supervisor: true, reviewer: true } },
+        topic: {
+          select: {
+            id: true,
+            title: true,
+            studentId: true,
+            studentName: true,
+            studentEmail: true,
+            supervisorId: true,
+            reviewerId: true,
+            supervisor: true,
+            reviewer: true,
+          },
+        },
         slot: true,
         room: true,
       },
     });
 
     // transform rows
-    const rows = schedule.map(s => ({
+    const rows = schedule.map((s) => ({
       scheduleId: s.id,
       topicTitle: s.topic.title,
       studentId: s.topic.studentId,
       studentName: s.topic.studentName,
       studentEmail: s.topic.studentEmail,
-      role: s.topic.supervisorId === id ? "Supervisor" : "Reviewer",
+      role: s.topic.supervisorId === userId ? 'Supervisor' : 'Reviewer',
       supervisorName: s.topic.supervisor?.name || null,
       reviewerName: s.topic.reviewer?.name || null,
       date: s.slot.date,

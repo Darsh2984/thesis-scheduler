@@ -8,6 +8,9 @@ type Schedule = {
     studentName: string;
     studentEmail: string;
     title: string;
+    faculty?: string | null;   // ✅ added
+    major?: string | null;     // ✅ added
+    gpa?: number | null;       // ✅ added
     supervisor?: { name: string | null } | null;
     reviewer?: { name: string | null } | null;
   };
@@ -57,11 +60,14 @@ export default function ScheduleClient({
   allSlots: SlotRoom[];
 }) {
   // === CSV Export (scheduled only) ===
-    const handleExportScheduleCSV = () => {
+  const handleExportScheduleCSV = () => {
     const headers = [
       "Student ID",
       "Student Name",
       "Student Email",
+      "Faculty",      // ✅ new
+      "Major",        // ✅ new
+      "GPA",          // ✅ new
       "Topic",
       "Supervisor",
       "Reviewer",
@@ -74,6 +80,9 @@ export default function ScheduleClient({
       s.topic.studentId,
       s.topic.studentName,
       s.topic.studentEmail,
+      s.topic.faculty || "—",
+      s.topic.major || "—",
+      s.topic.gpa ?? "—",
       s.topic.title,
       s.topic.supervisor?.name || "—",
       s.topic.reviewer?.name || "—",
@@ -94,13 +103,11 @@ export default function ScheduleClient({
 
     const link = document.createElement("a");
     link.href = url;
-    // ✅ updated name
     link.setAttribute("download", "Defenses_Schedule.csv");
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
-
 
   // === Unused slots (slot × room not in any schedule) ===
   const usedKeys = new Set(schedules.map((s) => `${s.slot.id}-${s.room.id}`));
@@ -130,7 +137,7 @@ export default function ScheduleClient({
 
     const link = document.createElement("a");
     link.href = url;
-    link.setAttribute("download", "Unused_Slots.csv"); // ✅ file name
+    link.setAttribute("download", "Unused_Slots.csv");
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -139,7 +146,6 @@ export default function ScheduleClient({
   return (
     <div className="container">
       <h1 className="pageTitle">Scheduled Presentations</h1>
-
       {/* Export Buttons */}
       <div className="flex gap-2 mb-4">
         <button onClick={handleExportScheduleCSV} className="btn">
@@ -151,7 +157,6 @@ export default function ScheduleClient({
           </button>
         )}
       </div>
-
       {/* Schedule Table */}
       <div className="card" style={{ overflow: "auto", maxHeight: "70vh" }}>
         <table className="table">
@@ -160,6 +165,9 @@ export default function ScheduleClient({
               <th>Student ID</th>
               <th>Student Name</th>
               <th>Student Email</th>
+              <th>Faculty</th>   {/* ✅ new */}
+              <th>Major</th>     {/* ✅ new */}
+              <th>GPA</th>       {/* ✅ new */}
               <th>Topic</th>
               <th>Supervisor</th>
               <th>Reviewer</th>
@@ -174,6 +182,9 @@ export default function ScheduleClient({
                 <td>{s.topic.studentId}</td>
                 <td>{s.topic.studentName}</td>
                 <td>{s.topic.studentEmail}</td>
+                <td>{s.topic.faculty || "—"}</td>
+                <td>{s.topic.major || "—"}</td>
+                <td>{s.topic.gpa ?? "—"}</td>
                 <td>{s.topic.title}</td>
                 <td>{s.topic.supervisor?.name || "—"}</td>
                 <td>{s.topic.reviewer?.name || "—"}</td>

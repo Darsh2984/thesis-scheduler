@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useParams } from 'next/navigation';
 
 type ScheduleRow = {
   scheduleId: number;
@@ -24,12 +25,10 @@ type User = {
   role?: string;
 };
 
-interface UserSchedulePageProps {
-  params: { id: string };
-}
+export default function UserSchedulePage() {
+  const params = useParams(); // ✅ use hook
+  const id = params?.id as string;
 
-export default function UserSchedulePage({ params }: UserSchedulePageProps) {
-  const { id } = params;
   const [schedule, setSchedule] = useState<ScheduleRow[]>([]);
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -39,7 +38,7 @@ export default function UserSchedulePage({ params }: UserSchedulePageProps) {
       try {
         const res = await fetch(`/api/users/${id}/schedule`, { cache: 'no-store' });
         const data = await res.json();
-        console.log("Fetched data:", data); // 🔍 debug
+        console.log('Fetched data:', data);
 
         if (!res.ok) throw new Error(data.error || 'Failed to load schedule');
 
@@ -94,43 +93,41 @@ export default function UserSchedulePage({ params }: UserSchedulePageProps) {
                 <th>Room</th>
               </tr>
             </thead>
-        <tbody>
-  {[...schedule]
-    .sort((a, b) => {
-      const dateA = new Date(a.date).getTime();
-      const dateB = new Date(b.date).getTime();
-      if (dateA !== dateB) return dateA - dateB;
-      return a.startTime.localeCompare(b.startTime);
-    })
-    .map((s) => {
-      let myRole = '—';
-      let counterpart = '—';
+            <tbody>
+              {[...schedule]
+                .sort((a, b) => {
+                  const dateA = new Date(a.date).getTime();
+                  const dateB = new Date(b.date).getTime();
+                  if (dateA !== dateB) return dateA - dateB;
+                  return a.startTime.localeCompare(b.startTime);
+                })
+                .map((s) => {
+                  let myRole = '—';
+                  let counterpart = '—';
 
-      if (s.supervisorName === user?.name) {
-        myRole = 'Supervisor';
-        counterpart = s.reviewerName || '—';
-      } else if (s.reviewerName === user?.name) {
-        myRole = 'Reviewer';
-        counterpart = s.supervisorName || '—';
-      }
+                  if (s.supervisorName === user?.name) {
+                    myRole = 'Supervisor';
+                    counterpart = s.reviewerName || '—';
+                  } else if (s.reviewerName === user?.name) {
+                    myRole = 'Reviewer';
+                    counterpart = s.supervisorName || '—';
+                  }
 
-      return (
-        <tr key={s.scheduleId}>
-          <td>{s.studentId}</td>
-          <td>{s.studentName}</td>
-          <td>{s.studentEmail}</td>
-          <td>{s.topicTitle}</td>
-          <td><span className="badge">{myRole}</span></td>
-          <td>{counterpart}</td>
-          <td>{formatDateLong(s.date)}</td>
-          <td>from {s.startTime} to {s.endTime}</td>
-          <td><span className="badge">{s.roomName}</span></td>
-        </tr>
-      );
-    })}
-        </tbody>
-
-
+                  return (
+                    <tr key={s.scheduleId}>
+                      <td>{s.studentId}</td>
+                      <td>{s.studentName}</td>
+                      <td>{s.studentEmail}</td>
+                      <td>{s.topicTitle}</td>
+                      <td><span className="badge">{myRole}</span></td>
+                      <td>{counterpart}</td>
+                      <td>{formatDateLong(s.date)}</td>
+                      <td>from {s.startTime} to {s.endTime}</td>
+                      <td><span className="badge">{s.roomName}</span></td>
+                    </tr>
+                  );
+                })}
+            </tbody>
           </table>
         </div>
       )}

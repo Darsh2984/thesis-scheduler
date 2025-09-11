@@ -38,9 +38,14 @@ model BachelorTopic {
   studentName   String
   studentEmail  String
 
+  faculty       String?   // ✅ new
+  major         String?   // ✅ new
+  gpa           Float?    // ✅ new
+
   schedules     Schedule[]
   conflicts     Conflict[]
 }
+
 
 model Room {
   id        Int       @id @default(autoincrement())

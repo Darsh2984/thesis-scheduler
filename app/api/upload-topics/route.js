@@ -24,6 +24,9 @@ export async function POST(req) {
       'Student ID','Student Name','Student Email','Title',
       'Supervisor Name','Supervisor Email','Reviewer Name','Reviewer Email',
     ];
+
+    const OPTIONAL_COLS = ['Faculty','Major','GPA']; // ✅ optional
+
     const cols = Object.keys(data[0]);
     for (const col of REQUIRED_COLS) {
       if (!cols.includes(col)) {
@@ -45,6 +48,14 @@ export async function POST(req) {
       const revName = row['Reviewer Name'];
       const revEmail = row['Reviewer Email'];
 
+      // ✅ new optional fields
+      const faculty = row['Faculty'] || null;
+      const major   = row['Major']   || null;
+      const gpaRaw  = row['GPA'];
+      const gpa     = gpaRaw !== undefined && gpaRaw !== null && gpaRaw !== ''
+        ? parseFloat(gpaRaw)
+        : null;
+
       if (!studentId || !studentName || !studentEmail || !title || !supEmail || !revEmail) continue;
 
       const supervisor = await prisma.user.upsert({
@@ -61,8 +72,15 @@ export async function POST(req) {
 
       await prisma.bachelorTopic.create({
         data: {
-          studentId, studentName, studentEmail, title,
-          supervisorId: supervisor.id, reviewerId: reviewer.id,
+          studentId,
+          studentName,
+          studentEmail,
+          title,
+          supervisorId: supervisor.id,
+          reviewerId: reviewer.id,
+          faculty,   // ✅ save if present
+          major,     // ✅ save if present
+          gpa,       // ✅ save if present
         },
       });
     }
