@@ -266,29 +266,32 @@ export default function TopicsSection() {
       onConfirm: async () => { await doClearAll(); },
     });
   }
-  async function doClearAll() {
-    setDeletingAll(true); setStatus('⏳ Clearing topics…'); setError('');
-    try {
-      const resList = await fetch('/api/topics?ts=' + Date.now(), { cache: 'no-store' });
-      const listData = await resList.json();
-      const ids: number[] = Array.isArray(listData.rows) ? listData.rows.map((t: any) => t.id) : [];
+ async function doClearAll() {
+  setDeletingAll(true);
+  setStatus('⏳ Clearing topics…');
+  setError('');
 
-      setRows([]); // optimistic clear
-      for (const id of ids) {
-        const res = await fetch(`/api/topics/${id}`, { method: 'DELETE' });
-        if (!res.ok) {
-          const data = await parseJsonSafe(res);
-          throw new Error(data?.error || `Delete failed at id=${id} (HTTP ${res.status})`);
-        }
-      }
-      await load();
-      setStatus('🧹 Cleared all topics');
-    } catch (err: any) {
-      setError(err?.message || String(err));
-      setStatus('');
-      await load();
-    } finally { setDeletingAll(false); }
+  try {
+    const res = await fetch('/api/topics', {
+      method: 'DELETE',
+      headers: { 'Cache-Control': 'no-store' },
+    });
+
+    const data = await res.json();
+    if (!res.ok) throw new Error(data?.error || 'Bulk delete failed');
+
+    setRows([]); // optimistic clear
+    await load(); // reload from backend
+    setStatus('🧹 Cleared all topics');
+  } catch (err: any) {
+    setError(err?.message || String(err));
+    setStatus('');
+    await load(); // reload in case partial changes happened
+  } finally {
+    setDeletingAll(false);
   }
+}
+
 
   // search + sort
   const filtered = useMemo(() => {

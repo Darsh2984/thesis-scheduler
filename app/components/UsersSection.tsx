@@ -222,43 +222,26 @@ export default function UsersSection() {
       cancelText: 'Cancel',
       tone: 'danger',
       onConfirm: async () => {
-        await doClearAll();
+        await doDeleteAll();
       },
     });
   }
 
-  async function doClearAll() {
-    setDeletingAll(true);
-    setStatus('⏳ Clearing users…');
-    setError('');
-
-    try {
-      // fetch a fresh, complete list (ignore active search)
-      const resList = await fetch('/api/users?ts=' + Date.now(), { cache: 'no-store' });
-      const listData = await resList.json();
-      const ids: number[] = Array.isArray(listData.rows) ? listData.rows.map((u: any) => u.id) : [];
-
-      setRows([]); // optimistic
-
-      // delete sequentially for reliability
-      for (const id of ids) {
-        const res = await fetch(`/api/users/${id}`, { method: 'DELETE' });
-        if (!res.ok) {
-          const data = await parseJsonSafe(res);
-          throw new Error(data?.error || `Delete failed at id=${id} (HTTP ${res.status})`);
-        }
-      }
-
-      await load();
-      setStatus('🧹 Cleared all users');
-    } catch (err: any) {
-      setError(err?.message || String(err));
-      setStatus('');
-      await load();
-    } finally {
-      setDeletingAll(false);
-    }
+const doDeleteAll = async () => {
+  setDeletingAll(true);
+  try {
+    const res = await fetch("/api/users", { method: "DELETE" });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed");
+    setStatus("All data deleted.");
+    setRows([]);
+  } catch (err: any) {
+    setError(err.message);
+  } finally {
+    setDeletingAll(false);
   }
+};
+
 
   async function addManual(e: React.FormEvent) {
     e.preventDefault();

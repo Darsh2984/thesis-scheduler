@@ -47,7 +47,6 @@ export async function GET() {
   const users = await prisma.user.findMany({ orderBy: { id: 'asc' } });
   return NextResponse.json({ rows: users });
 }
-
 export async function DELETE() {
   try {
     const counts = await prisma.$transaction(async (tx) => {

@@ -142,31 +142,27 @@ export default function RoomsSection() {
       onConfirm: async () => { await doClearAll(); }
     });
   }
-  async function doClearAll() {
-    setDeletingAll(true);
-    setStatus('⏳ Clearing rooms…'); setError('');
-    try {
-      const res = await fetch('/api/upload-rooms?ts=' + Date.now(), { cache: 'no-store' });
-      const data = await res.json();
-      const ids: number[] = Array.isArray(data.rows) ? data.rows.map((r: any) => r.id) : [];
-      setRows([]); // optimistic
-      for (const id of ids) {
-        const r = await fetch(`/api/upload-rooms?id=${id}`, { method: 'DELETE' });
-        if (!r.ok) {
-          const t = await r.text();
-          throw new Error(t || `Failed at id=${id}`);
-        }
-      }
-      await load();
-      setStatus('🧹 Cleared all rooms');
-    } catch (err: any) {
-      setError(err?.message || 'Clear failed');
-      setStatus('');
-      await load();
-    } finally {
-      setDeletingAll(false);
+async function doClearAll() {
+  setDeletingAll(true);
+  setStatus('⏳ Clearing rooms…'); setError('');
+  try {
+    const res = await fetch('/api/upload-rooms', { method: 'DELETE' });
+    if (!res.ok) {
+      const txt = await res.text();
+      throw new Error(txt || `HTTP ${res.status}`);
     }
+    setRows([]); // optimistic clear
+    await load(); // refresh to be safe
+    setStatus('🧹 Cleared all rooms');
+  } catch (err: any) {
+    setError(err?.message || 'Clear failed');
+    setStatus('');
+    await load();
+  } finally {
+    setDeletingAll(false);
   }
+}
+
 
   // manual add
   function validateCap(v: string) {

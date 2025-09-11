@@ -43,3 +43,15 @@ export async function POST(req) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
+export async function DELETE() {
+  try {
+    await prisma.$transaction([
+      prisma.preferredDate.deleteMany({}),
+      prisma.userUnavailability.deleteMany({}),
+    ]);
+
+    return NextResponse.json({ message: "All constraints cleared" });
+  } catch (err) {
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}

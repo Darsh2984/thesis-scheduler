@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 type Constraint = { id: number; date: string };
 type User = {
@@ -17,6 +17,7 @@ export default function ConstraintsSection() {
   const [open, setOpen] = useState(false);
   const [newDate, setNewDate] = useState<Record<string, string>>({});
   const [query, setQuery] = useState('');
+  const [confirm, setConfirm] = useState<any>(null);
 
   async function load() {
     try {
@@ -58,9 +59,33 @@ export default function ConstraintsSection() {
     }
   }
 
-  const sectionState = error ? 'Error' : users.length ? 'Loaded' : 'Pending';
+  function requestDeleteAllConstraints() {
+    setConfirm({
+      title: 'Delete All Constraints',
+      body: '⚠️ This will permanently delete all preferred and unavailable dates. Are you sure?',
+      confirmText: 'Delete All',
+      tone: 'danger',
+      onConfirm: async () => {
+        try {
+          const res = await fetch('/api/constraints', { method: 'DELETE' });
+          if (!res.ok) throw new Error();
+          setStatus('✅ All constraints cleared');
+          await load();
+        } catch {
+          setError('❌ Error clearing constraints');
+        }
+      },
+    });
+  }
+
+  const sectionState = error
+    ? "Error"
+    : users.length === 0
+    ? "No Users Entered"
+    : "Filled";
+
   const filteredUsers = query
-    ? users.filter(u => u.name.toLowerCase().includes(query.toLowerCase()))
+    ? users.filter((u) => u.name.toLowerCase().includes(query.toLowerCase()))
     : users;
 
   return (
@@ -97,6 +122,9 @@ export default function ConstraintsSection() {
               style={sx.search}
             />
             <div style={{ color: '#6b7280', fontSize: 12 }}>{filteredUsers.length} users</div>
+            <button onClick={requestDeleteAllConstraints} style={sx.dangerBtn}>
+              🗑️ Delete All
+            </button>
           </div>
 
           {/* scrollable content */}
@@ -185,6 +213,33 @@ export default function ConstraintsSection() {
           </div>
         </div>
       )}
+
+      {/* Confirm Modal */}
+      {confirm && (
+        <div style={sx.modalOverlay} onClick={() => setConfirm(null)}>
+          <div style={sx.modalCard} onClick={(e) => e.stopPropagation()}>
+            <div style={sx.modalTitle}>{confirm.title}</div>
+            <div style={sx.modalText}>{confirm.body}</div>
+            <div style={sx.modalActions}>
+              <button style={sx.secondaryBtn} onClick={() => setConfirm(null)}>
+                Cancel
+              </button>
+              <button
+                style={confirm.tone === 'danger' ? sx.dangerBtn : sx.primaryBtn}
+                onClick={async () => {
+                  try {
+                    await confirm.onConfirm?.();
+                  } finally {
+                    setConfirm(null);
+                  }
+                }}
+              >
+                {confirm.confirmText || 'Confirm'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
@@ -214,15 +269,26 @@ const sx: Record<string, any> = {
     fontSize: 18,
     border: '1px solid #e5e7eb',
   },
-  badge: (state: string) => ({
-    background: state === 'Loaded' ? '#ecfdf5' : state === 'Error' ? '#fef2f2' : '#f3f4f6',
-    color: state === 'Loaded' ? '#065f46' : state === 'Error' ? '#991b1b' : '#374151',
-    border: '1px solid #e5e7eb',
+   badge: (state: string) => ({
+    background:
+      state === "Filled"
+        ? "#ecfdf5"
+        : state === "Error"
+        ? "#fef2f2"
+        : "#f3f4f6", // Empty or fallback
+    color:
+      state === "Filled"
+        ? "#065f46"
+        : state === "Error"
+        ? "#991b1b"
+        : "#374151",
+    border: "1px solid #e5e7eb",
     borderRadius: 999,
     fontWeight: 700,
-    padding: '6px 10px',
+    padding: "6px 10px",
     fontSize: 12,
   }),
+
   heroBtn: {
     padding: '8px 14px',
     borderRadius: 10,
@@ -254,20 +320,40 @@ const sx: Record<string, any> = {
     gap: 12,
   },
   scrollCard: {
-    maxHeight: '400px', // 🔑 independent scroll
+    maxHeight: '400px',
     overflowY: 'auto',
     padding: 12,
     borderRadius: 8,
     border: '1px solid #f3f4f6',
   },
   input: { flex: 1, padding: '8px 10px', borderRadius: 8, border: '1px solid #d1d5db' },
-  secondaryBtn: {
-    padding: '8px 12px',
-    borderRadius: 8,
-    border: '1px solid #d1d5db',
-    background: '#f3f4f6',
+  primaryBtn: {
+    background: '#2563eb',
+    color: '#fff',
+    padding: '6px 12px',
+    borderRadius: 6,
+    border: 'none',
     cursor: 'pointer',
-    fontWeight: 700,
+    fontWeight: 600,
+  },
+  
+  secondaryBtn: {
+    background: '#f3f4f6',
+    color: '#111827',
+    padding: '6px 12px',
+    borderRadius: 6,
+    border: 'none',
+    cursor: 'pointer',
+    fontWeight: 600,
+  },
+  dangerBtn: {
+    background: '#dc2626',
+    color: '#fff',
+    padding: '6px 12px',
+    borderRadius: 6,
+    border: 'none',
+    cursor: 'pointer',
+    fontWeight: 600,
   },
   chip: {
     display: 'inline-flex',
@@ -306,4 +392,26 @@ const sx: Record<string, any> = {
   },
   search: { padding: '8px 10px', borderRadius: 8, border: '1px solid #d1d5db', flex: 1 },
   twoCol: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 },
+
+  // Modal
+  modalOverlay: {
+    position: 'fixed',
+    top: 0, left: 0, right: 0, bottom: 0,
+    background: 'rgba(0,0,0,.5)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 50,
+  },
+  modalCard: {
+    background: '#fff',
+    borderRadius: 12,
+    padding: 20,
+    maxWidth: 400,
+    width: '100%',
+    boxShadow: '0 4px 12px rgba(0,0,0,.2)',
+  },
+  modalTitle: { fontSize: 18, fontWeight: 700, marginBottom: 8 },
+  modalText: { marginBottom: 16, color: '#374151' },
+  modalActions: { display: 'flex', justifyContent: 'flex-end', gap: 8 },
 };
