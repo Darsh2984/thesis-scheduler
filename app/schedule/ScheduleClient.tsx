@@ -191,8 +191,7 @@ export default function ScheduleClient({
                 <td>{s.room.name}</td>
                 <td>{formatDateLong(s.slot.date)}</td>
                 <td>
-                  from {s.slot.startTime.slice(0, 5)} to{" "}
-                  {s.slot.endTime.slice(0, 5)}
+                  from {s.slot.startTime.slice(0, 5)} to {s.slot.endTime.slice(0, 5)}
                 </td>
               </tr>
             ))}
