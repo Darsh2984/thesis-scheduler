@@ -44,6 +44,7 @@ export default function UsersSection() {
   // upload state
   const [file, setFile] = useState<File | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const fileRef = useRef<File | null>(null); // ← ADD THIS
   const [dragOver, setDragOver] = useState(false);
 
   // section accordion
@@ -106,17 +107,22 @@ export default function UsersSection() {
   }
   function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0] || null;
+    fileRef.current = f; // ← ADD THIS
     setFile(f);
   }
   function onDrop(e: React.DragEvent<HTMLDivElement>) {
     e.preventDefault();
     setDragOver(false);
     const f = e.dataTransfer.files?.[0];
-    if (f) setFile(f);
+    if (f) {
+      fileRef.current = f; // ← ADD THIS
+      setFile(f);
+    }
   }
   async function upload(e: React.FormEvent) {
     e.preventDefault();
-    if (!file) {
+    const currentFile = fileRef.current; // ← READ FROM REF
+    if (!currentFile) {
       setError('❌ No file selected');
       return;
     }
@@ -124,13 +130,14 @@ export default function UsersSection() {
     setError('');
     try {
       const fd = new FormData();
-      fd.append('file', file);
+      fd.append('file', currentFile); // ← USE currentFile
       const res = await fetch('/api/upload-users', { method: 'POST', body: fd });
       const text = await res.text();
       if (!res.ok) throw new Error(`Upload failed (${res.status}). ${text}`);
 
       setStatus('✅ Users uploaded successfully');
       setFile(null);
+      fileRef.current = null; // ← ADD THIS
       if (inputRef.current) inputRef.current.value = '';
       setQuery(''); // clear search
       await load();
